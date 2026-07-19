@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://market-state-engine/schemas/internal/reasoning_request.v1.json",
+  "title": "ReasoningRequest",
+  "description": "Internal DTO v1. Provider-neutral input to the MarketReasoner port. Contains only numbers already computed (grounding). From docs/contracts/internal-dtos.md §4.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run_id", "job", "payload", "constraints"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "job": {
+      "type": "string",
+      "enum": ["sentiment", "synthesis"]
+    },
+    "payload": { "type": "object" },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["language", "grounding", "output_schema_ref", "max_tokens", "temperature"],
+      "properties": {
+        "language": { "type": "string", "const": "fa" },
+        "grounding": { "type": "boolean" },
+        "output_schema_ref": { "type": "string" },
+        "max_tokens": { "type": "integer", "minimum": 1 },
+        "temperature": { "type": "number", "minimum": 0 }
+      }
+    },
+    "self_consistency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "samples"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "samples": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

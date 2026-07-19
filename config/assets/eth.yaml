@@ -1,0 +1,16 @@
+symbol: ETH
+display_name: Ethereum
+asset_class: crypto
+regime_sensitivity: high
+decimals: 2
+trading_hours: 24/7
+staleness_threshold_minutes: 15
+noise_threshold:
+  k: 1.0
+  floor_pct: { "6h": 1.2, "24h": 1.8 }
+price_sources:
+  aggregation: median
+  min_sources: 3
+  max_deviation_pct: 0.5
+indicators: [rsi_14, macd, ema_20_50, atr_pct, volume_ratio_20d]
+rules_dir: rules/assets/eth/

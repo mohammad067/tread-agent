@@ -1,0 +1,23 @@
+{
+  "run_id": "01J8ZK3W9P4Q5R6S7T8U9V0W1X",
+  "llm_job": "sentiment",
+  "attempt_index": 0,
+  "provider": "openai",
+  "model_id": "gpt-5.5",
+  "prompt_version": "sentiment/v1",
+  "prompt_hash": "a3f9c2e1b7d048a5c9f2361e4d8a0b7c",
+  "rendered_prompt": "[[provider-neutral rendered sentiment prompt — content elided in fixture]]",
+  "response": {
+    "per_asset_sentiment": { "BTC": -0.38, "ETH": -0.41, "GOLD": -0.08, "WTI": -0.12, "USD_IRR": 0.1, "TOTAL_MCAP": -0.35 },
+    "global_sentiment": -0.35
+  },
+  "response_hash": "7be014a2c6f19b3d5e8027c4a1f6b9d0",
+  "latency_ms": 842,
+  "input_tokens": 613,
+  "output_tokens": 74,
+  "estimated_cost": 0.0031,
+  "retries": 0,
+  "finish_reason": "stop",
+  "outcome": "success",
+  "created_at": "2026-07-14T12:46:58Z"
+}

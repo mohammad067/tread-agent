@@ -1,0 +1,11 @@
+version: 1.0.0
+default_quality: 0.5
+sources:
+  wire_reuters: 0.95
+  wire_bloomberg: 0.95
+  wire_ap: 0.9
+  official_fed: 1.0
+  official_bls: 1.0
+  major_finance_media: 0.75
+  crypto_media: 0.6
+  social_aggregate: 0.3

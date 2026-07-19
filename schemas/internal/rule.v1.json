@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://market-state-engine/schemas/internal/rule.v1.json",
+  "title": "Rule",
+  "description": "Internal schema v1 for a rulebook YAML rule. Hard sign-off gate (ADR-008): economic_rationale (non-empty) and reviewed_by == senior_trader are required and cannot ship without. From docs/contracts/rule-schema.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "version",
+    "status",
+    "trigger",
+    "effects",
+    "half_life_hours",
+    "source",
+    "economic_rationale",
+    "reviewed_by",
+    "reviewed_at"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "version": { "type": "integer", "minimum": 1 },
+    "status": {
+      "type": "string",
+      "enum": ["active", "inactive", "deprecated"]
+    },
+    "trigger": { "$ref": "#/$defs/Trigger" },
+    "effects": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Effect" }
+    },
+    "regime_guard": { "$ref": "#/$defs/RegimeGuard" },
+    "half_life_hours": { "type": "number", "exclusiveMinimum": 0 },
+    "source": { "type": "string", "minLength": 1 },
+    "economic_rationale": { "type": "string", "minLength": 1 },
+    "reviewed_by": { "type": "string", "const": "senior_trader" },
+    "reviewed_at": { "type": "string", "format": "date" }
+  },
+  "$defs": {
+    "Trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["condition", "condition_vars"],
+      "properties": {
+        "event_type": {
+          "type": "string",
+          "enum": ["us_cpi", "fomc", "us_nfp"]
+        },
+        "condition": { "type": "string", "minLength": 1 },
+        "condition_vars": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "Effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["asset", "direction", "strength", "horizon"],
+      "properties": {
+        "asset": { "type": "string" },
+        "direction": {
+          "type": "string",
+          "enum": ["bullish", "bearish", "neutral"]
+        },
+        "strength": {
+          "type": "string",
+          "enum": ["dominant", "major", "moderate", "minor"]
+        },
+        "horizon": { "type": "string" },
+        "uncertain": { "type": "boolean" }
+      }
+    },
+    "RegimeGuard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["applies_in", "else"],
+      "properties": {
+        "applies_in": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["risk_on", "risk_off", "transition", "event_driven"]
+          }
+        },
+        "else": {
+          "type": "string",
+          "enum": ["suppress", "downgrade_to_minor", "flag_uncertain"]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+version: 1.1.0
+# Market Health Index = weighted projection of the state vector; weights sum to 1.0.
+# Higher trend and lower risk raise MHI; sentiment contributes when present (0 when degraded).
+weights:
+  trend: 0.4
+  risk: 0.35
+  sentiment: 0.15
+  volatility: 0.1

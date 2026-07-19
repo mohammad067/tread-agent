@@ -1,0 +1,13 @@
+symbol: TOTAL_MCAP
+display_name: Crypto Total Market Cap
+asset_class: index
+regime_sensitivity: high
+decimals: 0
+trading_hours: 24/7
+staleness_threshold_minutes: 15
+noise_threshold:
+  k: 1.0
+  floor_pct: { "6h": 0.8, "24h": 1.2 }
+# Index/context series: reduced indicator set (A8) — no full RSI/MACD/EMA to avoid double-counting BTC.
+indicators: [atr_pct, trend_state, dominance_shift]
+rules_dir: rules/assets/total_mcap/

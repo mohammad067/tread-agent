@@ -1,0 +1,368 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://market-state-engine/schemas/market_state_run.v1.0.0.json",
+  "title": "MarketStateRun",
+  "description": "The frozen public contract v1.0.0. Materialized verbatim from docs/contracts/market-state-run-schema.md. FA-only summary, USD/IRR in IRT, proxy internal-only (ADR-014); index-class assets (A8); deterministic regime confidence (A2); reserved slots (ADR-013).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "run_sequence",
+    "trigger_type",
+    "trigger_detail",
+    "generated_at",
+    "is_degraded",
+    "versions",
+    "regime",
+    "assets",
+    "global",
+    "guardrail_flags",
+    "disclaimer"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "run_id": {
+      "type": "string",
+      "description": "ULID."
+    },
+    "run_sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "trigger_type": {
+      "type": "string",
+      "enum": ["scheduled", "event"]
+    },
+    "trigger_detail": {
+      "$ref": "#/$defs/TriggerDetail"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "is_degraded": {
+      "type": "boolean"
+    },
+    "versions": {
+      "$ref": "#/$defs/Versions"
+    },
+    "regime": {
+      "$ref": "#/$defs/Regime"
+    },
+    "assets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Asset" }
+    },
+    "global": {
+      "$ref": "#/$defs/Global"
+    },
+    "guardrail_flags": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/GuardrailFlag" }
+    },
+    "disclaimer": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "TriggerDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "event_id": { "type": "string" },
+        "debounced_events": { "type": "integer", "minimum": 0 },
+        "scheduled_for": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rulebook",
+        "mhi_weights",
+        "prompt_sentiment",
+        "prompt_synthesis",
+        "provider",
+        "model",
+        "pipeline",
+        "pricing"
+      ],
+      "properties": {
+        "rulebook": { "type": "string" },
+        "mhi_weights": { "type": "string" },
+        "prompt_sentiment": { "type": "string" },
+        "prompt_synthesis": { "type": "string" },
+        "provider": { "type": "string" },
+        "model": { "type": "string" },
+        "pipeline": { "type": "string" },
+        "pricing": { "type": "string" }
+      }
+    },
+    "Regime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "previous_state", "changed_this_run", "confidence", "drivers"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["risk_on", "risk_off", "transition", "event_driven"]
+        },
+        "previous_state": {
+          "type": ["string", "null"],
+          "enum": ["risk_on", "risk_off", "transition", "event_driven", null]
+        },
+        "changed_this_run": { "type": "boolean" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "drivers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Driver" }
+        }
+      }
+    },
+    "Driver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "weight_type"],
+      "properties": {
+        "name": { "type": "string" },
+        "weight_type": {
+          "type": "string",
+          "enum": ["computed", "ordinal"]
+        },
+        "weight": { "type": "number", "minimum": 0, "maximum": 1 },
+        "level": {
+          "type": "string",
+          "enum": ["dominant", "major", "moderate", "minor"]
+        },
+        "detail": { "type": "string" }
+      },
+      "oneOf": [
+        {
+          "properties": { "weight_type": { "const": "computed" } },
+          "required": ["weight"],
+          "not": { "required": ["level"] }
+        },
+        {
+          "properties": { "weight_type": { "const": "ordinal" } },
+          "required": ["level"],
+          "not": { "required": ["weight"] }
+        }
+      ]
+    },
+    "Asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "symbol",
+        "asset_class",
+        "price",
+        "changes",
+        "scores",
+        "market_health_index",
+        "regime_sensitivity",
+        "activated_rules",
+        "causal_links",
+        "data_gaps"
+      ],
+      "properties": {
+        "symbol": { "type": "string" },
+        "asset_class": {
+          "type": "string",
+          "enum": ["crypto", "metal", "energy", "fx", "index"]
+        },
+        "price": { "$ref": "#/$defs/Price" },
+        "changes": { "$ref": "#/$defs/Changes" },
+        "indicators": { "$ref": "#/$defs/Indicators" },
+        "scores": { "$ref": "#/$defs/Scores" },
+        "market_health_index": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "regime_sensitivity": {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        },
+        "activated_rules": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RuleActivation" }
+        },
+        "causal_links": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/CausalLink" }
+        },
+        "human_summary_fa": { "type": "string" },
+        "novelty_flags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "data_gaps": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "Price": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "currency", "as_of", "is_stale"],
+      "properties": {
+        "value": { "type": "number" },
+        "currency": {
+          "type": "string",
+          "enum": ["USD", "IRT"]
+        },
+        "as_of": { "type": "string", "format": "date-time" },
+        "is_stale": { "type": "boolean" },
+        "stale_reason": { "type": "string" },
+        "venue_aggregation": { "type": "string" }
+      }
+    },
+    "Changes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["6h", "24h", "7d", "30d"],
+      "properties": {
+        "6h": { "type": "number" },
+        "24h": { "type": "number" },
+        "7d": { "type": "number" },
+        "30d": { "type": "number" }
+      }
+    },
+    "Indicators": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rsi_14": { "type": "number", "minimum": 0, "maximum": 100 },
+        "macd_state": {
+          "type": "string",
+          "enum": ["bullish_cross", "bearish_cross", "neutral", "bullish", "bearish"]
+        },
+        "ema_20_50": {
+          "type": "string",
+          "enum": [
+            "above_diverging",
+            "above_converging",
+            "below_diverging",
+            "below_converging",
+            "crossing"
+          ]
+        },
+        "atr_pct": { "type": "number", "minimum": 0 },
+        "volume_ratio_20d": { "type": "number", "minimum": 0 },
+        "trend_state": { "type": "string" },
+        "dominance_shift": { "type": "number" }
+      }
+    },
+    "Scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trend", "risk", "sentiment", "confidence"],
+      "properties": {
+        "trend": { "type": "number", "minimum": -1, "maximum": 1 },
+        "risk": { "type": "number", "minimum": 0, "maximum": 1 },
+        "sentiment": {
+          "type": ["number", "null"],
+          "minimum": -1,
+          "maximum": 1
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "RuleActivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_id", "strength", "horizon", "decay_remaining"],
+      "properties": {
+        "rule_id": { "type": "string" },
+        "strength": {
+          "type": "string",
+          "enum": ["dominant", "major", "moderate", "minor"]
+        },
+        "horizon": { "type": "string" },
+        "decay_remaining": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "CausalLink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "direction", "via_rule"],
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "direction": {
+          "type": "string",
+          "enum": ["bullish", "bearish", "neutral"]
+        },
+        "via_rule": { "type": "string" }
+      }
+    },
+    "Global": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fear_greed",
+        "btc_dominance",
+        "total_market_cap_usd",
+        "expectation_context",
+        "onchain_context"
+      ],
+      "properties": {
+        "fear_greed": { "$ref": "#/$defs/FearGreed" },
+        "btc_dominance": { "type": "number", "minimum": 0, "maximum": 100 },
+        "total_market_cap_usd": { "type": "number", "minimum": 0 },
+        "expectation_context": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "recent_surprises": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["event", "surprise_sigma"],
+                "properties": {
+                  "event": { "type": "string" },
+                  "surprise_sigma": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "onchain_context": { "type": "null" }
+      }
+    },
+    "FearGreed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "label"],
+      "properties": {
+        "value": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "label": {
+          "type": "string",
+          "enum": [
+            "extreme_fear",
+            "fear",
+            "neutral",
+            "greed",
+            "extreme_greed"
+          ]
+        }
+      }
+    },
+    "GuardrailFlag": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity"],
+      "properties": {
+        "code": { "type": "string" },
+        "severity": {
+          "type": "string",
+          "enum": ["info", "warning", "critical"]
+        },
+        "detail": { "type": "string" },
+        "field": { "type": "string" }
+      }
+    }
+  }
+}

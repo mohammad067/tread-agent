@@ -1,0 +1,13 @@
+version: 1.0.0
+# Per-event-type recency half-life for news effective_weight (hours).
+news_half_life_hours:
+  us_cpi: 24.0
+  fomc: 48.0
+  us_nfp: 18.0
+  default: 12.0
+# Default rule influence half-lives (hours); a rule may override with its own half_life_hours.
+rule_half_life_defaults:
+  us_cpi: 12.0
+  fomc: 24.0
+  us_nfp: 10.0
+  default: 12.0

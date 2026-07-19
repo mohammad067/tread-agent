@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://market-state-engine/schemas/internal/state_vector.v1.json",
+  "title": "StateVector",
+  "description": "Internal DTO v1. The deterministic core's finished numeric output for one run: per-asset scores + MHI, regime (with computed drivers), and the RuleActivation[]/CausalLink[]. Input to LLM Call #2 and Guardrails. From docs/contracts/internal-dtos.md §6.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run_id", "regime", "per_asset", "activated_rules", "causal_links"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "regime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "previous_state", "changed_this_run", "confidence", "drivers"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["risk_on", "risk_off", "transition", "event_driven"]
+        },
+        "previous_state": {
+          "type": ["string", "null"],
+          "enum": ["risk_on", "risk_off", "transition", "event_driven", null]
+        },
+        "changed_this_run": { "type": "boolean" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "drivers": {
+          "type": "array",
+          "description": "Deterministic (computed) drivers only at this stage; ordinal drivers are added by synthesis.",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "per_asset": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scores", "market_health_index"],
+        "properties": {
+          "scores": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["trend", "risk", "confidence"],
+            "properties": {
+              "trend": { "type": "number", "minimum": -1, "maximum": 1 },
+              "risk": { "type": "number", "minimum": 0, "maximum": 1 },
+              "sentiment": { "type": ["number", "null"], "minimum": -1, "maximum": 1 },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          },
+          "market_health_index": { "type": "integer", "minimum": 0, "maximum": 100 }
+        }
+      }
+    },
+    "activated_rules": {
+      "type": "object",
+      "description": "Map of symbol -> array of RuleActivation.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "$ref": "rule_activation.v1.json" }
+      }
+    },
+    "causal_links": {
+      "type": "object",
+      "description": "Map of symbol -> array of CausalLink.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "$ref": "causal_link.v1.json" }
+      }
+    }
+  }
+}

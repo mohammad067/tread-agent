@@ -1,0 +1,30 @@
+{
+  "run_id": "01J8ZK3W9P4Q5R6S7T8U9V0W1X",
+  "job": "sentiment",
+  "payload": {
+    "assets": ["BTC", "ETH", "GOLD", "WTI", "USD_IRR", "TOTAL_MCAP"],
+    "news_digest": {
+      "run_id": "01J8ZK3W9P4Q5R6S7T8U9V0W1X",
+      "items": [
+        {
+          "news_id": "news_2026_07_14_001",
+          "title": "US core CPI comes in hotter than expected at 0.4% m/m",
+          "source": "wire_reuters",
+          "published_at": "2026-07-14T12:35:00Z",
+          "source_quality": 0.95,
+          "relevance": 1.0,
+          "recency_decay": 0.98,
+          "effective_weight": 0.931
+        }
+      ],
+      "weighting_versions": { "source_quality": "1.0.0", "half_lives": "1.0.0" }
+    }
+  },
+  "constraints": {
+    "language": "fa",
+    "grounding": true,
+    "output_schema_ref": "reasoning_response.v1.json#/$defs/SentimentResponse",
+    "max_tokens": 512,
+    "temperature": 0
+  }
+}

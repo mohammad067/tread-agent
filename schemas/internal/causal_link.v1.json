@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://market-state-engine/schemas/internal/causal_link.v1.json",
+  "title": "CausalLink",
+  "description": "Internal DTO v1. Same shape as MarketStateRun §5.5; surfaced directly in the public contract. From docs/contracts/internal-dtos.md §7.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["from", "to", "direction", "via_rule"],
+  "properties": {
+    "from": { "type": "string" },
+    "to": { "type": "string" },
+    "direction": {
+      "type": "string",
+      "enum": ["bullish", "bearish", "neutral"]
+    },
+    "via_rule": { "type": "string" }
+  }
+}

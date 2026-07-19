@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://market-state-engine/schemas/internal/feature_set.v1.json",
+  "title": "FeatureSet",
+  "description": "Internal DTO v1. All deterministic math outputs for one run; byte-reproducible from RawSnapshots + config versions. From docs/contracts/internal-dtos.md §2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "per_asset",
+    "global_features",
+    "event_features",
+    "news_features",
+    "config_versions"
+  ],
+  "properties": {
+    "run_id": { "type": "string" },
+    "per_asset": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/AssetFeatures" }
+    },
+    "global_features": { "type": "object" },
+    "event_features": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/EventFeature" }
+    },
+    "news_features": { "type": "object" },
+    "config_versions": { "type": "object" }
+  },
+  "$defs": {
+    "AssetFeatures": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["changes"],
+      "properties": {
+        "indicators": { "type": "object" },
+        "changes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["6h", "24h", "7d", "30d"],
+          "properties": {
+            "6h": { "type": ["number", "null"] },
+            "24h": { "type": ["number", "null"] },
+            "7d": { "type": ["number", "null"] },
+            "30d": { "type": ["number", "null"] }
+          }
+        },
+        "atr_pct": { "type": ["number", "null"], "minimum": 0 },
+        "volume_ratio_20d": { "type": ["number", "null"], "minimum": 0 },
+        "event_proximity": { "type": ["number", "null"] },
+        "decay_inputs": { "type": "object" }
+      }
+    },
+    "EventFeature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_id", "event_type", "surprise", "surprise_sigma", "proximity_hours"],
+      "properties": {
+        "event_id": { "type": "string" },
+        "event_type": { "type": "string" },
+        "surprise": { "type": "number" },
+        "surprise_sigma": { "type": ["number", "null"] },
+        "proximity_hours": { "type": "number" }
+      }
+    }
+  }
+}

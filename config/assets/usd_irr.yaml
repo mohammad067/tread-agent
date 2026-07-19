@@ -1,0 +1,18 @@
+symbol: USD_IRR
+display_name: USD/IRR (Tehran free market)
+asset_class: fx
+regime_sensitivity: low
+decimals: 0
+trading_hours: tehran_fx
+staleness_threshold_minutes: 60
+noise_threshold:
+  k: 1.0
+  floor_pct: { "6h": 0.5, "24h": 0.8 }
+indicators: [rsi_14, macd, ema_20_50, atr_pct, volume_ratio_20d]
+rules_dir: rules/assets/usd_irr/
+# Internally a USDT/IRT proxy (kifpool priceSellIRT); value in IRT/Toman. Proxy nature is not
+# surfaced in the API/UI (ADR-014).
+source:
+  provider: kifpool
+  field: priceSellIRT
+  currency: IRT

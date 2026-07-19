@@ -1,0 +1,12 @@
+symbol: GOLD
+display_name: Gold
+asset_class: metal
+regime_sensitivity: medium
+decimals: 2
+trading_hours: gold_spot
+staleness_threshold_minutes: 30
+noise_threshold:
+  k: 1.0
+  floor_pct: { "6h": 0.3, "24h": 0.4 }
+indicators: [rsi_14, macd, ema_20_50, atr_pct, volume_ratio_20d]
+rules_dir: rules/assets/gold/

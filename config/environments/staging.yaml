@@ -1,0 +1,16 @@
+env: staging
+database:
+  dialect: postgres
+  dsn_env: DB_DSN
+ingestion:
+  mode: real
+llm:
+  mode: real
+  providers_ref: providers.yaml
+scheduler:
+  scheduled_cron: "0 */6 * * *"
+  event_cooldown_minutes: 30
+budget:
+  monthly_llm_budget: 50.0
+  currency: USD
+  alert_pct: 80

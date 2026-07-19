@@ -1,0 +1,120 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "market-state-engine"
+version = "0.1.0"
+description = "Market State Engine — deterministic, explainable, auditable market-condition snapshots (API-only)."
+readme = "README.md"
+# NOTE: The frozen M1 tech stack targets Python 3.12+. The local interpreter is 3.10.7,
+# so we set >=3.10 and avoid 3.11/3.12-only syntax to stay forward-compatible with 3.12.
+# Recorded as an implementation note, not an architecture change.
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+dependencies = [
+    "pydantic>=2.5,<3",
+    "PyYAML>=6,<7",
+    "jsonschema>=4.20,<5",
+    "python-ulid>=2,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+    "pytest-cov>=5,<6",
+    "hypothesis>=6.100,<7",
+    "ruff>=0.6,<1",
+    "mypy>=1.11,<2",
+    "import-linter>=2.0,<3",
+    "types-PyYAML>=6,<7",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# --------------------------------------------------------------------------------------
+# Ruff — lint + format (single tool; §12 CI gate)
+# --------------------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["N802", "N803", "N806"]
+
+# --------------------------------------------------------------------------------------
+# mypy — strict on src/ (§12 CI gate)
+# --------------------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+no_implicit_reexport = true
+files = ["src"]
+# Tests are intentionally excluded from `files` (strict typing is enforced on src/ only).
+
+# --------------------------------------------------------------------------------------
+# pytest + coverage
+# --------------------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+    "contract: validates an artifact against a frozen JSON Schema",
+    "golden: compares output against a normative golden fixture",
+    "property: hypothesis-based property test",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["market_state_engine"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+# --------------------------------------------------------------------------------------
+# import-linter — enforces the Clean-Architecture dependency rule (frozen invariant #1)
+# Contracts are progressively tightened as modules land in later batches.
+# --------------------------------------------------------------------------------------
+[tool.importlinter]
+root_package = "market_state_engine"
+
+[[tool.importlinter.contracts]]
+name = "Domain core imports no I/O, framework, or vendor SDK"
+type = "forbidden"
+source_modules = ["market_state_engine.core"]
+forbidden_modules = [
+    "market_state_engine.ingestion",
+    "market_state_engine.config",
+    "market_state_engine.reasoning",
+    "market_state_engine.pipeline",
+    "market_state_engine.persistence",
+    "market_state_engine.api",
+]
+
+[[tool.importlinter.contracts]]
+name = "Pure compute layers never reach ingestion/persistence/reasoning/pipeline/api"
+type = "forbidden"
+source_modules = [
+    "market_state_engine.features",
+    "market_state_engine.news",
+    "market_state_engine.scoring",
+    "market_state_engine.guardrails",
+]
+forbidden_modules = [
+    "market_state_engine.ingestion",
+    "market_state_engine.reasoning",
+    "market_state_engine.pipeline",
+    "market_state_engine.persistence",
+    "market_state_engine.api",
+]

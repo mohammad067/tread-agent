@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://market-state-engine/schemas/internal/degraded_marker.v1.json",
+  "title": "DegradedMarker",
+  "description": "Internal DTO v1. Returned instead of a ReasoningResponse when all providers fail for a job (ADR-011). From docs/contracts/internal-dtos.md §9.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["job", "reason", "last_attempt"],
+  "properties": {
+    "job": {
+      "type": "string",
+      "enum": ["sentiment", "synthesis"]
+    },
+    "reason": { "type": "string" },
+    "last_attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model_id"],
+      "properties": {
+        "provider": { "type": "string" },
+        "model_id": { "type": "string" }
+      }
+    }
+  }
+}

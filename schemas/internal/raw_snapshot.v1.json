@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://market-state-engine/schemas/internal/raw_snapshot.v1.json",
+  "title": "RawSnapshot",
+  "description": "Internal DTO v1. Immutable capture of one source's output for one run. From docs/contracts/internal-dtos.md §1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_id",
+    "symbol",
+    "payload",
+    "as_of",
+    "is_stale",
+    "deviation_flags",
+    "content_hash"
+  ],
+  "properties": {
+    "source_id": { "type": "string" },
+    "symbol": { "type": ["string", "null"] },
+    "payload": { "type": "object" },
+    "as_of": { "type": "string", "format": "date-time" },
+    "is_stale": { "type": "boolean" },
+    "stale_reason": { "type": "string" },
+    "deviation_flags": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "content_hash": { "type": "string" }
+  }
+}

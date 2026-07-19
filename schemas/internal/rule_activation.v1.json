@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://market-state-engine/schemas/internal/rule_activation.v1.json",
+  "title": "RuleActivation",
+  "description": "Internal DTO v1. Same public shape as MarketStateRun §5.4 plus internal-only fields matched_condition and source_rule_version (NOT surfaced in the public MarketStateRun). From docs/contracts/internal-dtos.md §7.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["rule_id", "strength", "horizon", "decay_remaining"],
+  "properties": {
+    "rule_id": { "type": "string" },
+    "strength": {
+      "type": "string",
+      "enum": ["dominant", "major", "moderate", "minor"]
+    },
+    "horizon": { "type": "string" },
+    "decay_remaining": { "type": "number", "minimum": 0, "maximum": 1 },
+    "matched_condition": { "type": "string" },
+    "source_rule_version": { "type": "integer", "minimum": 1 }
+  }
+}

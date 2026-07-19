@@ -1,0 +1,56 @@
+{
+  "run_id": "01J8ZK3W9P4Q5R6S7T8U9V0W1X",
+  "job": "synthesis",
+  "payload": {
+    "state_vector": {
+      "run_id": "01J8ZK3W9P4Q5R6S7T8U9V0W1X",
+      "regime": {
+        "state": "risk_off",
+        "previous_state": "transition",
+        "changed_this_run": true,
+        "confidence": 0.72,
+        "drivers": [
+          { "name": "cpi_surprise", "weight_type": "computed", "weight": 0.41 },
+          { "name": "risk_score_spike", "weight_type": "computed", "weight": 0.33 }
+        ]
+      },
+      "per_asset": {
+        "BTC": {
+          "scores": { "trend": -0.45, "risk": 0.71, "sentiment": -0.38, "confidence": 0.66 },
+          "market_health_index": 41
+        }
+      },
+      "activated_rules": {
+        "BTC": [
+          {
+            "rule_id": "cpi_hot_risk_assets_bearish",
+            "strength": "major",
+            "horizon": "24h",
+            "decay_remaining": 0.94
+          }
+        ]
+      },
+      "causal_links": {
+        "BTC": [
+          {
+            "from": "us_cpi_2026_07",
+            "to": "BTC",
+            "direction": "bearish",
+            "via_rule": "cpi_hot_risk_assets_bearish"
+          }
+        ]
+      }
+    },
+    "sentiment": {
+      "per_asset_sentiment": { "BTC": -0.38 },
+      "global_sentiment": -0.35
+    }
+  },
+  "constraints": {
+    "language": "fa",
+    "grounding": true,
+    "output_schema_ref": "reasoning_response.v1.json#/$defs/SynthesisResponse",
+    "max_tokens": 1024,
+    "temperature": 0
+  }
+}

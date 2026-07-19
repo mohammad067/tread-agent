@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://market-state-engine/schemas/internal/reasoning_response.v1.json",
+  "title": "ReasoningResponse",
+  "description": "Internal DTO v1. Two variants (sentiment, synthesis), both structured-output-validated. From docs/contracts/internal-dtos.md §5. On provider failure the pipeline receives a DegradedMarker instead (separate schema).",
+  "oneOf": [
+    { "$ref": "#/$defs/SentimentResponse" },
+    { "$ref": "#/$defs/SynthesisResponse" }
+  ],
+  "$defs": {
+    "SentimentResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["per_asset_sentiment", "global_sentiment"],
+      "properties": {
+        "per_asset_sentiment": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "minimum": -1, "maximum": 1 }
+        },
+        "global_sentiment": { "type": "number", "minimum": -1, "maximum": 1 },
+        "confidence_signals": { "type": "object" }
+      }
+    },
+    "SynthesisResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["per_asset"],
+      "properties": {
+        "per_asset": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/SynthesisAsset" }
+        },
+        "grounding_ok": { "type": "boolean" }
+      }
+    },
+    "SynthesisAsset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["human_summary_fa", "ordinal_drivers", "novelty_flags", "data_gap_notes"],
+      "properties": {
+        "human_summary_fa": { "type": "string" },
+        "ordinal_drivers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/OrdinalDriver" }
+        },
+        "novelty_flags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "data_gap_notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "OrdinalDriver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "weight_type", "level"],
+      "properties": {
+        "name": { "type": "string" },
+        "weight_type": { "type": "string", "const": "ordinal" },
+        "level": {
+          "type": "string",
+          "enum": ["dominant", "major", "moderate", "minor"]
+        },
+        "detail": { "type": "string" }
+      }
+    }
+  }
+}
