@@ -1,0 +1,20 @@
+id: cpi_soft_risk_assets_bullish
+version: 1
+status: active
+trigger:
+  event_type: us_cpi
+  condition: "surprise_core_mom <= -0.1"
+  condition_vars:
+    - surprise_core_mom
+effects:
+  - { asset: BTC, direction: bullish, strength: moderate, horizon: 24h }
+  - { asset: ETH, direction: bullish, strength: moderate, horizon: 24h }
+  - { asset: TOTAL_MCAP, direction: bullish, strength: moderate, horizon: 24h }
+half_life_hours: 12
+source: "Disinflation surprises ease the expected policy path (2023-2024)."
+economic_rationale: >
+  Softer-than-consensus core CPI lowers the expected policy-rate path -> real yields down -> support for risk
+  assets. Symmetric counterpart to the hot-CPI rule; kept moderate because easing surprises move markets less
+  violently than hawkish shocks in a hiking regime.
+reviewed_by: senior_trader
+reviewed_at: "2026-06-02"

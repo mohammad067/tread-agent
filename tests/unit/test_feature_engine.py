@@ -131,3 +131,23 @@ def test_missing_indicator_snapshot_degrades_to_gaps(
     for symbol in ALL_SYMBOLS:
         af = fs.per_asset[symbol]
         assert af.changes.h6 is None
+
+
+def test_short_series_degrades_indicators_without_error(
+    engine: FeatureEngine, ctx: RunContext
+) -> None:
+    # A present-but-short series exercises every indicator guard branch: no indicator is emitted,
+    # the run does not fail, and the result still validates.
+    short = {
+        "as_of": "2026-07-14T12:45:00Z",
+        "closes": [100.0, 101.0, 102.0],
+        "highs": [101.0, 102.0, 103.0],
+        "lows": [99.0, 100.0, 101.0],
+        "volumes": [1000.0, 1010.0, 1020.0],
+    }
+    src = MockIndicatorInputSource({s: short for s in ALL_SYMBOLS})
+    ind_snaps = {s: src.fetch_series(s, ctx) for s in ALL_SYMBOLS}
+    fs = engine.compute({}, ind_snaps, {}, [], ctx)
+    btc = fs.per_asset["BTC"]
+    assert btc.indicators == {}
+    assert btc.atr_pct is None

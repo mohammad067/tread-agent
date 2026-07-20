@@ -1,0 +1,24 @@
+id: cpi_hot_risk_assets_bearish
+version: 3
+status: active
+trigger:
+  event_type: us_cpi
+  condition: "surprise_core_mom >= 0.1"
+  condition_vars:
+    - surprise_core_mom
+effects:
+  - { asset: BTC, direction: bearish, strength: major, horizon: 24h }
+  - { asset: ETH, direction: bearish, strength: major, horizon: 24h }
+  - { asset: TOTAL_MCAP, direction: bearish, strength: major, horizon: 24h }
+  - { asset: GOLD, direction: bearish, strength: moderate, horizon: 24h, uncertain: true }
+regime_guard:
+  applies_in: [risk_off]
+  else: downgrade_to_minor
+half_life_hours: 12
+source: "Fed reaction function, 2022-2025 hiking-cycle evidence"
+economic_rationale: >
+  Hotter-than-consensus core CPI raises the expected policy-rate path -> real yields up -> discount-rate
+  pressure on risk assets and non-yielding gold. The gold sign is regime-dependent, so its effect is guarded
+  and downgraded outside a risk-off/hiking regime.
+reviewed_by: senior_trader
+reviewed_at: "2026-06-02"

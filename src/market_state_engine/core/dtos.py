@@ -92,6 +92,22 @@ class NewsDigest(_Dto):
         return self.model_dump(by_alias=True)
 
 
+# --- Scored per-asset outputs (deterministic core; feed assembly) ----------------------
+class AssetScores(_Dto):
+    trend: float = Field(ge=-1.0, le=1.0)
+    risk: float = Field(ge=0.0, le=1.0)
+    sentiment: float | None = Field(default=None, ge=-1.0, le=1.0)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class RegimeResult(_Dto):
+    state: str
+    previous_state: str | None
+    changed_this_run: bool
+    confidence: float = Field(ge=0.0, le=1.0)
+    computed_drivers: list[dict[str, object]]
+
+
 # --- Raw input records (fed by ingestion; used by features) ----------------------------
 class NewsItem(_Dto):
     """A pre-collected news record consumed from the external feed (Q3)."""
