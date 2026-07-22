@@ -178,3 +178,24 @@ forbidden_modules = [
     "market_state_engine.reasoning.adapters",
     "market_state_engine.api",
 ]
+
+# Evaluation is a top-level tooling layer (Milestone 6): it may read every lower layer, but nothing
+# below it may import it — no core/compute/reasoning/pipeline/persistence/api module depends on the
+# evaluation package. Keeps the production tooling strictly downstream of the system it evaluates.
+[[tool.importlinter.contracts]]
+name = "Evaluation is downstream — no lower layer imports it"
+type = "forbidden"
+source_modules = [
+    "market_state_engine.core",
+    "market_state_engine.features",
+    "market_state_engine.news",
+    "market_state_engine.scoring",
+    "market_state_engine.guardrails",
+    "market_state_engine.rules",
+    "market_state_engine.ingestion",
+    "market_state_engine.reasoning",
+    "market_state_engine.persistence",
+    "market_state_engine.pipeline",
+    "market_state_engine.api",
+]
+forbidden_modules = ["market_state_engine.evaluation"]

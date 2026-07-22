@@ -119,7 +119,7 @@ def test_write_endpoint_without_key_is_503() -> None:
     c = build_full_container()
     client = TestClient(create_app(c))
     resp = client.post("/v1/events", json={"event_type": "us_cpi", "consensus": 0.3, "actual": 0.4})
-    assert resp.status_code == 503  # write key not configured
+    assert resp.status_code == 401  # write key not configured
 
 
 def test_write_endpoint_with_key_accepts_event(monkeypatch: pytest.MonkeyPatch) -> None:

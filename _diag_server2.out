@@ -1,7 +1,0 @@
-{"run_id": "01KY2N4W44Z0N6QZZD5T87JHSS", "trigger_type": "event", "run_sequence": 1, "level": "info", "timestamp": "2026-07-21T15:36:40.344764Z", "event": "run_start"}
-{"run_id": "01KY2N4W44Z0N6QZZD5T87JHSS", "provider": "openai", "outcome": "error", "level": "info", "timestamp": "2026-07-21T15:36:40.363761Z", "event": "provider_call"}
-{"run_id": "01KY2N4W44Z0N6QZZD5T87JHSS", "provider": "anthropic", "outcome": "error", "level": "info", "timestamp": "2026-07-21T15:36:40.364783Z", "event": "provider_call"}
-{"run_id": "01KY2N4W44Z0N6QZZD5T87JHSS", "provider": "openai", "outcome": "error", "level": "info", "timestamp": "2026-07-21T15:36:40.365766Z", "event": "provider_call"}
-{"run_id": "01KY2N4W44Z0N6QZZD5T87JHSS", "provider": "anthropic", "outcome": "error", "level": "info", "timestamp": "2026-07-21T15:36:40.366761Z", "event": "provider_call"}
-{"run_id": "01KY2N4W44Z0N6QZZD5T87JHSS", "reason": "llm_absent", "level": "info", "timestamp": "2026-07-21T15:36:40.367760Z", "event": "degraded"}
-{"run_id": "01KY2N4W44Z0N6QZZD5T87JHSS", "status": "degraded", "published": true, "level": "info", "timestamp": "2026-07-21T15:36:40.367760Z", "event": "run_finish"}

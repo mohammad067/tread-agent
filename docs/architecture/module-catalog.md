@@ -223,6 +223,17 @@ Maps to `src/market_state_engine/evaluation/`. Detail: [pipelines.md](pipelines.
 - **Purity:** Pure over stored data. **May not:** let provider metrics leak into model-quality metrics (§7).
 - **Owner:** Evaluator (P3) + Backend.
 
+> **Milestone 6 traceability (implemented).** The evaluation package now ships:
+> `outcomes.py` (OutcomeRecorder → append-only `event_log`), `replay_harness.py` (ReplayHarness +
+> deterministic/core fingerprints), `metrics.py` (latency/retries/success-rate/degraded-rate/replay-
+> rate/tokens/cost), `engine.py` (seven correctness checks), `ablation.py` (deterministic-only /
+> +sentiment / full variants — the frozen B/C/D bands), `validation.py` (production-readiness
+> verdict), `reporting.py` (five reports), `schema_registry.py` (offline schema loading). The MVP
+> scope of F1 is **execution-outcome recording**; realized-return Outcomes at +6h/+24h remain the
+> post-MVP extension described above. Full design + the replay-guarantee boundary (deterministic core
+> vs. sentiment-fed MHI/summaries): [evaluation-framework.md](evaluation-framework.md). Enforced by
+> the import-linter contract "Evaluation is downstream — no lower layer imports it."
+
 ---
 
 ## G. Presentation

@@ -31,21 +31,6 @@ def check_read(api_key: str | None) -> None:
 
 
 def check_write(api_key: str | None) -> None:
-    # --- TEMPORARY DIAGNOSTIC (remove after root cause proven) ---
-    import sys as _sys
-
-    print(
-        "[DIAG check_write] "
-        f"pid={os.getpid()} "
-        f"file={__file__} "
-        f"env_MSE_API_WRITE_KEY={os.environ.get(WRITE_KEY_ENV)!r} "
-        f"id(os.environ)={id(os.environ)} "
-        f"header_api_key={api_key!r} "
-        f"env_keys_with_MSE={[k for k in os.environ if 'MSE' in k]}",
-        file=_sys.stderr,
-        flush=True,
-    )
-    # --- END TEMPORARY DIAGNOSTIC ---
     expected = os.environ.get(WRITE_KEY_ENV)
     if not expected:
         raise AuthError("unavailable", "write API key not configured", 503)
