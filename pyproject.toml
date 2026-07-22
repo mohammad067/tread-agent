@@ -17,6 +17,11 @@ dependencies = [
     "PyYAML>=6,<7",
     "jsonschema>=4.20,<5",
     "python-ulid>=2,<3",
+    # M5 runtime: persistence, migrations, API, structured logging.
+    "SQLAlchemy>=2.0,<3",
+    "alembic>=1.13,<2",
+    "fastapi>=0.110,<1",
+    "structlog>=24,<25",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +33,7 @@ dev = [
     "mypy>=1.11,<2",
     "import-linter>=2.0,<3",
     "types-PyYAML>=6,<7",
+    "httpx>=0.27,<1",
 ]
 
 [tool.setuptools.packages.find]
@@ -61,6 +67,13 @@ disallow_any_generics = true
 no_implicit_reexport = true
 files = ["src"]
 # Tests are intentionally excluded from `files` (strict typing is enforced on src/ only).
+
+# jsonschema ships no type stubs on this interpreter; the structured-output validator uses it at
+# the reasoning boundary only. Ignore its missing stubs without loosening strictness elsewhere.
+[[tool.mypy.overrides]]
+module = ["jsonschema"]
+ignore_missing_imports = true
+
 
 # --------------------------------------------------------------------------------------
 # pytest + coverage
@@ -116,5 +129,52 @@ forbidden_modules = [
     "market_state_engine.reasoning",
     "market_state_engine.pipeline",
     "market_state_engine.persistence",
+    "market_state_engine.api",
+]
+
+# Reasoning layer sees only core (for shared types/hashing); it never reaches into the deterministic
+# compute layers, ingestion, pipeline, or api. Enforces the frozen boundary from the Core's side and
+# keeps the LLM layer from pulling on business logic (frozen invariant #1 / #9).
+[[tool.importlinter.contracts]]
+name = "Reasoning layer never reaches compute/ingestion/pipeline/api"
+type = "forbidden"
+source_modules = ["market_state_engine.reasoning"]
+forbidden_modules = [
+    "market_state_engine.features",
+    "market_state_engine.news",
+    "market_state_engine.scoring",
+    "market_state_engine.guardrails",
+    "market_state_engine.ingestion",
+    "market_state_engine.pipeline",
+    "market_state_engine.api",
+]
+
+# Persistence is a leaf I/O layer: it stores contract-shaped rows and must not reach business logic,
+# ingestion, reasoning, the pipeline, or the api (module-catalog D / dependency table).
+[[tool.importlinter.contracts]]
+name = "Persistence never reaches compute/ingestion/reasoning/pipeline/api"
+type = "forbidden"
+source_modules = ["market_state_engine.persistence"]
+forbidden_modules = [
+    "market_state_engine.features",
+    "market_state_engine.news",
+    "market_state_engine.scoring",
+    "market_state_engine.guardrails",
+    "market_state_engine.ingestion",
+    "market_state_engine.reasoning",
+    "market_state_engine.pipeline",
+    "market_state_engine.api",
+]
+
+# The pipeline reaches the LLM ONLY through the MarketReasoner port + neutral DTOs — never the gateway
+# implementation or a vendor adapter directly (module-catalog E1: "call a vendor directly ... only via
+# MarketReasoner"). The gateway is wired in the composition root (app), not the orchestrator.
+[[tool.importlinter.contracts]]
+name = "Pipeline reaches the LLM only via the MarketReasoner port"
+type = "forbidden"
+source_modules = ["market_state_engine.pipeline"]
+forbidden_modules = [
+    "market_state_engine.reasoning.gateway",
+    "market_state_engine.reasoning.adapters",
     "market_state_engine.api",
 ]

@@ -1,0 +1,129 @@
+"""The DI container — constructs and holds the wired service graph (composition root).
+
+Built from the existing configuration system only: ``load_config_bundle`` + ``load_env_config`` +
+``ReasoningPaths``. Two reasoning modes: live (config-driven adapters, with optional offline
+overrides) and replay (``ReplayProvider`` over recorded Call Records). Time is injectable so the
+graph is deterministic in tests. The container owns nothing stateful beyond the DB + registries.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
+from datetime import datetime, timezone
+from pathlib import Path
+
+from market_state_engine.config.loader import ConfigBundle, load_config_bundle, load_env_config
+from market_state_engine.core.enums import RegimeState
+from market_state_engine.core.run_context import RunContext
+from market_state_engine.observability.metrics import Metrics
+from market_state_engine.persistence.session import Database, build_engine, resolve_url
+from market_state_engine.pipeline.orchestrator import IngestBundle, PipelineOrchestrator
+from market_state_engine.pipeline.runner import RunService
+from market_state_engine.pipeline.scheduler import Scheduler
+from market_state_engine.reasoning import ReasoningPaths, build_gateway
+from market_state_engine.reasoning.adapters.base import ProviderAdapter
+from market_state_engine.reasoning.gateway import LLMGateway
+from market_state_engine.reasoning.models import CallRecord
+from market_state_engine.rules.engine import RuleEngine
+from market_state_engine.rules.loader import load_rulebook, read_rulebook_version
+
+_PIPELINE_VERSION = "1.0.0"
+
+
+def _utc_now() -> datetime:  # pragma: no cover - trivial default, overridden in tests
+    return datetime.now(timezone.utc)
+
+
+class Container:
+    """Holds the wired graph. Construct via :func:`build_container`."""
+
+    def __init__(
+        self,
+        *,
+        config: ConfigBundle,
+        database: Database,
+        gateway: LLMGateway,
+        scheduler: Scheduler,
+        run_service: RunService,
+        call_record_sink: list[CallRecord],
+        metrics: Metrics,
+        rulebook_version: str,
+        pipeline_version: str,
+    ) -> None:
+        self.config = config
+        self.database = database
+        self.gateway = gateway
+        self.scheduler = scheduler
+        self.run_service = run_service
+        self.call_record_sink = call_record_sink
+        self.metrics = metrics
+        self.rulebook_version = rulebook_version
+        self.pipeline_version = pipeline_version
+
+
+def build_container(
+    root: Path,
+    *,
+    env: str = "dev",
+    ingest_provider: Callable[[RunContext], IngestBundle],
+    overrides: Mapping[str, ProviderAdapter] | None = None,
+    clock: Callable[[], datetime] = _utc_now,
+    previous_state_provider: Callable[[], RegimeState | None] | None = None,
+    sqlite_path: str | None = None,
+    create_schema: bool = True,
+) -> Container:
+    """Wire the full service graph from config. ``ingest_provider`` supplies raw inputs per run."""
+    config_dir = root / "config"
+    config = load_config_bundle(config_dir)
+    env_cfg = load_env_config(config_dir, env)
+    rules_dir = root / "rules"
+    rulebook_version = read_rulebook_version(rules_dir)
+    rule_engine = RuleEngine(load_rulebook(rules_dir))
+
+    # Database from env config (dialect + optional DSN env var). No hardcoded connection string.
+    url = resolve_url(env_cfg.database.dialect, env_cfg.database.dsn_env, sqlite_path)
+    database = Database(build_engine(url))
+    if create_schema:
+        database.create_all()
+
+    # Reasoning gateway: config-driven; the recorder sink collects Call Records for persistence.
+    sink: list[CallRecord] = []
+    gateway = build_gateway(
+        ReasoningPaths(root),
+        overrides=dict(overrides) if overrides is not None else None,
+        recorder=sink.append,
+        clock=clock,
+    )
+
+    orchestrator = PipelineOrchestrator(
+        config=config,
+        rules=rule_engine,
+        reasoner=gateway,
+        rulebook_version=rulebook_version,
+        clock=clock,
+    )
+    run_service = RunService(
+        db=database,
+        orchestrator=orchestrator,
+        clock=clock,
+        call_record_sink=sink,
+        pipeline_version=_PIPELINE_VERSION,
+    )
+    scheduler = Scheduler(
+        run_service=run_service,
+        ingest_provider=ingest_provider,
+        clock=clock,
+        previous_state_provider=previous_state_provider,
+        versions={"pipeline": _PIPELINE_VERSION, "rulebook": rulebook_version},
+    )
+    return Container(
+        config=config,
+        database=database,
+        gateway=gateway,
+        scheduler=scheduler,
+        run_service=run_service,
+        call_record_sink=sink,
+        metrics=Metrics(),
+        rulebook_version=rulebook_version,
+        pipeline_version=_PIPELINE_VERSION,
+    )

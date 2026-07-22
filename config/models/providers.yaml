@@ -1,0 +1,44 @@
+version: 1.0.0
+# Provider configuration (ADR-007 D-3). Secrets are NEVER here: api_key_env names the environment
+# variable that holds the key. Adding a provider = append one block + drop in one adapter.
+# Behaviours these knobs drive (retry/backoff/failover/circuit breaker) land in M4.2; M4.1 only
+# loads and validates this shape.
+routing:
+  strategy: priority          # priority | weighted
+  degrade_after_all_fail: true  # ADR-011 frozen invariant — must remain true
+defaults:
+  temperature: 0
+  max_tokens: 1024
+  timeout_seconds: 20
+  retries: 2
+  backoff:
+    type: exponential
+    base_ms: 400
+    max_ms: 4000
+  circuit_breaker:
+    failure_threshold: 5
+    window_seconds: 120
+    half_open_after_seconds: 60
+providers:
+  - name: openai
+    enabled: true
+    priority: 1
+    weight: 60
+    api_key_env: OPENAI_API_KEY
+    models: {sentiment: gpt-5.5, synthesis: gpt-5.5}
+    temperature: 0
+    max_tokens: 1024
+    timeout_seconds: 20
+    retries: 2
+  - name: anthropic
+    enabled: true
+    priority: 2
+    weight: 40
+    api_key_env: ANTHROPIC_API_KEY
+    models: {sentiment: claude-sonnet-5, synthesis: claude-sonnet-5}
+  - name: gemini
+    enabled: false            # temporary disable — config only, no code change
+    priority: 3
+    weight: 0
+    api_key_env: GOOGLE_API_KEY
+    models: {sentiment: gemini-2.5-pro, synthesis: gemini-2.5-pro}
