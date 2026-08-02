@@ -13,3 +13,9 @@ budget:
   monthly_llm_budget: 0.0
   currency: USD
   alert_pct: 80
+#دیتابیس: SQLite
+#ingestion و LLM: هر دو mock
+
+#کرون هر ۶ ساعت
+#cooldown رویداد: ۳۰ دقیقه
+#بودجه LLM ماهانه: ۰

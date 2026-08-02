@@ -1,5 +1,5 @@
 """Half-life decay math for news recency and rule influence. Pure.
-
+کم شدن تأثیر با زمان
 decay(t) = 0.5 ** (elapsed_hours / half_life_hours), clamped to [0, 1].
 """
 

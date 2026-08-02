@@ -9,5 +9,6 @@ noise_threshold:
   k: 1.0
   floor_pct: { "6h": 0.8, "24h": 1.2 }
 # Index/context series: reduced indicator set (A8) — no full RSI/MACD/EMA to avoid double-counting BTC.
+#اندیکاتورها محدودتر: فقط atr_pct، trend_state، dominance_shift
 indicators: [atr_pct, trend_state, dominance_shift]
 rules_dir: rules/assets/total_mcap/

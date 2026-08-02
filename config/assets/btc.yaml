@@ -14,3 +14,26 @@ price_sources:
   max_deviation_pct: 0.5
 indicators: [rsi_14, macd, ema_20_50, atr_pct, volume_ratio_20d]
 rules_dir: rules/assets/btc/
+
+
+# کلاس: crypto
+# حساسیت به رژیم جهانی: High
+# معاملات: 24/7
+# اگر قیمت بیشتر از 15 دقیقه قدیمی باشد → stale
+#
+# آستانه نویز:
+# - 6 ساعته: 1%
+# - 24 ساعته: 1.5%
+# (کمتر از این = نویز)
+#
+# قیمت از چند منبع با Median
+# حداقل 3 منبع
+# اگر انحراف بیشتر از 0.5% باشد → Flag
+#
+# اندیکاتورها:
+# - RSI-14
+# - MACD
+# - EMA20
+# - EMA50
+# - ATR%
+# - Volume Ratio

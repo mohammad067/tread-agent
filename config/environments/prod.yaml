@@ -14,3 +14,8 @@ budget:
   monthly_llm_budget: 200.0
   currency: USD
   alert_pct: 80
+
+#دیتابیس: Postgres (از متغیر DB_DSN)
+#ingestion و LLM: real
+#بودجه LLM ماهانه ۲۰۰ دلار
+#هشدار وقتی ۸۰٪ بودجه مصرف شد

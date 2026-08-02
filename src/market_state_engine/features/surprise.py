@@ -1,5 +1,5 @@
 """Macro-event surprise computation. Surprise = actual - consensus (event-natural units).
-
+عدد واقعی منهای پیش‌بینی بازار
 The LLM never computes this; rules trigger on surprise, not raw actuals (F-5).
 """
 

@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict
 
 from .enums import RegimeState, TriggerType
 
-
+#غیرقابل تغییر بعد ساخت
 class RunContext(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
