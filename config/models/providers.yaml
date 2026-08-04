@@ -21,8 +21,8 @@ defaults:
     half_open_after_seconds: 60
 providers:
   - name: openai
-    enabled: true
-    priority: 1
+    enabled: false
+    priority: 2
     weight: 60
     api_key_env: OPENAI_API_KEY
     models: {sentiment: gpt-5.5, synthesis: gpt-5.5}
@@ -32,7 +32,7 @@ providers:
     retries: 2
   - name: anthropic
     enabled: true
-    priority: 2
+    priority: 1
     weight: 40
     api_key_env: ANTHROPIC_API_KEY
     models: {sentiment: claude-sonnet-5, synthesis: claude-sonnet-5}

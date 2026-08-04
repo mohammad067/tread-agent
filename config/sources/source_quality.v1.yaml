@@ -9,3 +9,5 @@ sources:
   major_finance_media: 0.75
   crypto_media: 0.6
   social_aggregate: 0.3
+  coindesk: 0.75
+  cointelegraph: 0.70
