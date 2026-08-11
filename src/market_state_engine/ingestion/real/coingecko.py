@@ -24,6 +24,7 @@ from market_state_engine.core.run_context import RunContext
 _COINGECKO_IDS: dict[str, str] = {
     "BTC": "bitcoin",
     "ETH": "ethereum",
+    "GOLD": "pax-gold",  # پروکسی اونس به USD؛ جایگزین: "tether-gold"
 }
 
 _DEFAULT_BASE = "https://api.coingecko.com/api/v3"

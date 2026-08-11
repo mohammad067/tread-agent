@@ -8,7 +8,6 @@
 
 اسم ماژول عمداً crypto_* نیست تا نفت/طلا/ماکرو هم همین‌جا گسترش یابد.
 """
-
 from __future__ import annotations
 
 import hashlib
@@ -37,6 +36,11 @@ _FEEDS: list[tuple[str, str, list[str]]] = [
         ["ETH"],
     ),
     (
+        "https://cointelegraph.com/rss/tag/gold",
+        "cointelegraph",
+        ["GOLD"],
+    ),
+    (
         "https://www.coindesk.com/arc/outboundfeeds/rss/",
         "coindesk",
         ["BTC", "ETH"],
@@ -48,7 +52,7 @@ _MAX_ITEMS = 40
 _TAG_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
     ("BTC", ("bitcoin", "btc", "satoshi")),
     ("ETH", ("ethereum", "vitalik", " ether")),
-    ("GOLD", (" gold", "xau", "bullion")),
+    ("GOLD", (" gold", "xau", "bullion", "tether gold", "pax gold")),
     ("WTI", ("crude", "oil price", "wti", "brent")),
     ("TOTAL_MCAP", ("fed", "fomc", "cpi", "inflation", "rate hike", "rate cut", "sec ")),
 ]
@@ -159,7 +163,7 @@ def _parse_feed(content: bytes, source: str, defaults: list[str]) -> list[NewsIt
 
 
 class RssNewsSource:
-    """NewsSource-compatible for any market tags (crypto now; metals/energy later)."""
+    """NewsSource-compatible for any market tags (crypto + gold; energy later)."""
 
     def __init__(
         self,
@@ -176,7 +180,7 @@ class RssNewsSource:
             try:
                 raw = _fetch(url)
                 batch = _parse_feed(raw, source, defaults)
-                _log.info("rss_ok source=%s n=%s", source, len(batch))
+                _log.info("rss_ok source=%s url=%s n=%s", source, url, len(batch))
             except Exception as exc:  # noqa: BLE001
                 _log.warning("rss_fail source=%s url=%s err=%s", source, url, exc)
                 continue

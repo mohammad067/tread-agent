@@ -1,0 +1,7 @@
+# آخرین CPI رسمی — با عدد واقعی BLS پر کن (نه نمونهٔ الکی)
+# واحد: همان درصد ماهانه که rules انتظار دارد (معمولاً MoM ٪)
+event_id: us_cpi_2026_06
+event_type: US_CPI
+scheduled_at: "2026-07-14T12:30:00Z"
+consensus: -0.2
+actual: -0.4
