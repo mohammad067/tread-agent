@@ -55,10 +55,7 @@ def _pick_xau(rows: list[dict[str, Any]]) -> dict[str, Any]:
         abbr = str(row.get("abbr") or "").upper().replace("/", "")
         if abbr in ("XAUUSD", "XAU"):
             return row
-    raise RuntimeError(
-        "CryptoBaz: no XAUUSD row "
-        f"(abbrs={[r.get('abbr') for r in rows]})"
-    )
+    raise RuntimeError(f"CryptoBaz: no XAUUSD row (abbrs={[r.get('abbr') for r in rows]})")
 
 
 def _as_of(row: dict[str, Any]) -> str:

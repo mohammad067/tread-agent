@@ -23,9 +23,7 @@ _log = logging.getLogger("ingestion.real.tgju_oil")
 
 _LIVE_URL = "https://call4.tgju.org/ajax.json"
 _LIVE_KEY = "oil_brent"
-_HISTORY_URL = (
-    "https://api.tgju.org/v1/market/indicator/summary-table-data/energy-brent-oil"
-)
+_HISTORY_URL = "https://api.tgju.org/v1/market/indicator/summary-table-data/energy-brent-oil"
 _TARGET_BARS = 130
 _STALE_AFTER_DAYS = 2
 _TEHRAN_TZ = timezone(timedelta(hours=3, minutes=30))
@@ -134,9 +132,7 @@ def _build_payload(
             hist_close,
         )
 
-    closes, highs, lows, dates = _merge_live(
-        bars, current, current_high, current_low, merge_date
-    )
+    closes, highs, lows, dates = _merge_live(bars, current, current_high, current_low, merge_date)
 
     today = datetime.now(_TEHRAN_TZ).date()
     age_days = (today - date.fromisoformat(merge_date)).days

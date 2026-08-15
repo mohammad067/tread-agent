@@ -57,4 +57,5 @@ def create_default_app() -> FastAPI:
     configure_logging(os.environ.get("MSE_LOG_LEVEL", "INFO"))
     return create_app(build_default_container())
 
+
 app = create_default_app()
