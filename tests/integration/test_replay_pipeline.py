@@ -32,7 +32,7 @@ def test_replay_reruns_full_pipeline_without_live_provider() -> None:
 
     # 2) Replay container: adapters are ReplayProviders over the recorded Call Records. Same run_id
     #    → identical prompts → identical prompt hashes → the recorded calls are served.
-    replay_adapters = {"openai": ReplayProvider("openai", records)}
+    replay_adapters = {"anthropic": ReplayProvider("anthropic", records)}
     replay = build_container(
         REPO,
         env="dev",

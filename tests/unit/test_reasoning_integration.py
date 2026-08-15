@@ -114,12 +114,12 @@ def _fake(name: str, text: str) -> FakeProvider:
 
 # --- End-to-end reasoning flow -------------------------------------------------------
 def test_build_gateway_end_to_end_sentiment() -> None:
-    # openai is priority-1 enabled in the frozen providers.yaml; override it with a canned double.
+    # Anthropic is the enabled provider in providers.yaml; inject a canned offline double.
     sink: list[CallRecord] = []
     ticks = iter([1000, 1250])  # injected monotonic advances 250ms across the call
     gw = build_gateway(
         _paths(),
-        overrides={"openai": _fake("openai", _sentiment_text())},
+        overrides={"anthropic": _fake("anthropic", _sentiment_text())},
         recorder=sink.append,
         clock=_clock,
         monotonic_ms=lambda: next(ticks, 1250),
@@ -130,30 +130,27 @@ def test_build_gateway_end_to_end_sentiment() -> None:
     assert result.per_asset_sentiment["BTC"] == -0.38
     # A Call Record was captured, with a versioned cost from the real pricing table.
     assert sink[-1].outcome == "success"
-    assert sink[-1].provider == "openai"
+    assert sink[-1].provider == "anthropic"
     assert sink[-1].estimated_cost is not None
     assert sink[-1].latency_ms == 250
-    assert sink[-1].model_id == "gpt-5.5"  # from the frozen providers.yaml
+    assert sink[-1].model_id == "claude-sonnet-5"  # from the frozen providers.yaml
 
 
 def test_build_gateway_end_to_end_synthesis() -> None:
     gw = build_gateway(
-        _paths(), overrides={"openai": _fake("openai", _synthesis_text())}, clock=_clock
+        _paths(), overrides={"anthropic": _fake("anthropic", _synthesis_text())}, clock=_clock
     )
     result = gw.synthesize(_synthesis_request())
     assert isinstance(result, SynthesisResponse)
     assert "BTC" in result.per_asset
 
 
-def test_gateway_fails_over_openai_to_anthropic() -> None:
-    # openai fails; anthropic (priority 2, enabled) serves — pure config-driven failover.
+def test_gateway_serves_configured_anthropic_provider() -> None:
+    # Only Anthropic is enabled in the current provider configuration.
     sink: list[CallRecord] = []
     gw = build_gateway(
         _paths(),
-        overrides={
-            "openai": FakeProvider(name="openai", raise_exc=ProviderCallError("down")),
-            "anthropic": _fake("anthropic", _sentiment_text()),
-        },
+        overrides={"anthropic": _fake("anthropic", _sentiment_text())},
         recorder=sink.append,
         clock=_clock,
     )
@@ -169,8 +166,7 @@ def test_all_providers_fail_yields_degraded_marker() -> None:
     gw = build_gateway(
         _paths(),
         overrides={
-            "openai": FakeProvider(name="openai", raise_exc=ProviderCallError("down")),
-            "anthropic": FakeProvider(name="anthropic", raise_exc=ProviderCallError("down")),
+            "anthropic": FakeProvider(name="anthropic", raise_exc=ProviderCallError("down"))
         },
         recorder=sink.append,
         clock=_clock,
@@ -179,7 +175,7 @@ def test_all_providers_fail_yields_degraded_marker() -> None:
     # Never raises, never fabricates: honest DegradedMarker (ADR-011 DR-2/DR-3).
     assert isinstance(result, DegradedMarker)
     assert result.job.value == "sentiment"
-    assert result.last_attempt.provider in {"openai", "anthropic"}
+    assert result.last_attempt.provider == "anthropic"
     # Every attempt is still recorded (frozen invariant #5).
     assert sink
     assert all(r.outcome == "error" for r in sink)
@@ -188,17 +184,14 @@ def test_all_providers_fail_yields_degraded_marker() -> None:
 def test_partial_degradation_is_per_job() -> None:
     # Sentiment succeeds, synthesis degrades — per-LLM-job degradation (ADR-011 DR-5).
     good = build_gateway(
-        _paths(), overrides={"openai": _fake("openai", _sentiment_text())}, clock=_clock
+        _paths(), overrides={"anthropic": _fake("anthropic", _sentiment_text())}, clock=_clock
     )
     sentiment = good.analyze_sentiment(_sentiment_request())
     assert isinstance(sentiment, SentimentResponse)
 
     bad = build_gateway(
         _paths(),
-        overrides={
-            "openai": FakeProvider(name="openai", raise_exc=ProviderCallError("x")),
-            "anthropic": FakeProvider(name="anthropic", raise_exc=ProviderCallError("y")),
-        },
+        overrides={"anthropic": FakeProvider(name="anthropic", raise_exc=ProviderCallError("y"))},
         clock=_clock,
     )
     synthesis = bad.synthesize(_synthesis_request())
@@ -211,7 +204,7 @@ def test_replay_gateway_reproduces_recorded_run() -> None:
     live_sink: list[CallRecord] = []
     live = build_gateway(
         _paths(),
-        overrides={"openai": _fake("openai", _sentiment_text())},
+        overrides={"anthropic": _fake("anthropic", _sentiment_text())},
         recorder=live_sink.append,
         clock=_clock,
     )

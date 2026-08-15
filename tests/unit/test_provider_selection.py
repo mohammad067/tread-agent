@@ -43,16 +43,15 @@ def test_build_adapters_only_enabled() -> None:
     # gemini is enabled:false in the frozen file → not instantiated (config-driven selection).
     reg = ProviderRegistry.from_file(PROVIDERS_YAML)
     adapters = build_adapters(reg)
-    assert set(adapters) == {"openai", "anthropic"}
-    assert adapters["openai"].name == "openai"
+    assert set(adapters) == {"anthropic"}
+    assert adapters["anthropic"].name == "anthropic"
 
 
 def test_build_adapters_override_injects_double() -> None:
     reg = ProviderRegistry.from_file(PROVIDERS_YAML)
-    fake = FakeProvider(name="openai", text="{}")
-    adapters = build_adapters(reg, overrides={"openai": fake})
-    assert adapters["openai"] is fake
-    assert isinstance(adapters["anthropic"], ClaudeProvider)
+    fake = FakeProvider(name="anthropic", text="{}")
+    adapters = build_adapters(reg, overrides={"anthropic": fake})
+    assert adapters["anthropic"] is fake
 
 
 def test_unknown_provider_has_no_adapter() -> None:

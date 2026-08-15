@@ -60,7 +60,7 @@ def build_full_container(*, no_news: bool = False) -> Container:
         REPO,
         env="dev",
         ingest_provider=provider,
-        overrides={"openai": SequencedFake("openai")},
+        overrides={"anthropic": SequencedFake("anthropic")},
         clock=fixed_clock,
         previous_state_provider=lambda: RegimeState.TRANSITION,
     )
@@ -72,8 +72,7 @@ def build_degraded_container() -> Container:
         env="dev",
         ingest_provider=ingest_provider,
         overrides={
-            "openai": FakeProvider(name="openai", raise_exc=ProviderCallError("down")),
-            "anthropic": FakeProvider(name="anthropic", raise_exc=ProviderCallError("down")),
+            "anthropic": FakeProvider(name="anthropic", raise_exc=ProviderCallError("down"))
         },
         clock=fixed_clock,
         previous_state_provider=lambda: RegimeState.TRANSITION,

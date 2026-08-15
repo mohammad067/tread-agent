@@ -45,7 +45,7 @@ def test_loads_frozen_providers_file() -> None:
     assert reg.strategy == "priority"
     # gemini is enabled: false in the frozen file → excluded from the routing set.
     names = [p.name for p in reg.enabled_providers()]
-    assert names == ["openai", "anthropic"]
+    assert names == ["anthropic"]
 
 
 def test_enabled_providers_sorted_by_priority() -> None:

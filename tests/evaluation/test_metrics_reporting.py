@@ -34,8 +34,8 @@ def test_call_metrics_tokens_cost_latency() -> None:
     assert m.success_rate == 1.0
     assert m.total_input_tokens > 0
     assert m.total_estimated_cost > 0
-    assert "openai" in m.per_provider
-    assert m.per_provider["openai"].success_rate == 1.0
+    assert "anthropic" in m.per_provider
+    assert m.per_provider["anthropic"].success_rate == 1.0
 
 
 def test_run_rate_metrics_degraded() -> None:
@@ -81,7 +81,7 @@ def test_provider_report_shape() -> None:
     report = provider_report(collect_call_metrics(_calls(c, run_id)))
     assert report["report"] == "provider"
     assert report["total_calls"] == 2
-    assert "openai" in report["per_provider"]
+    assert "anthropic" in report["per_provider"]
 
 
 def test_evaluation_report_shape() -> None:
