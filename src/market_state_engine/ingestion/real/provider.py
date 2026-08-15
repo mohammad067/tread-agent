@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from market_state_engine.core.dtos import MacroEvent, RawSnapshot
 from market_state_engine.core.run_context import RunContext
 from market_state_engine.ingestion.mocks.mock_sources import (
     MockDominanceSource,
@@ -44,10 +45,10 @@ _ALL_SYMBOLS = ("BTC", "ETH", "GOLD", "WTI", "USD_IRR", "TOTAL_MCAP")
 _AS_OF_FALLBACK = "2026-07-14T12:45:00Z"
 
 
-def _mock_series_bundle() -> dict[str, dict]:
+def _mock_series_bundle() -> dict[str, dict[str, object]]:
     import math
 
-    out: dict[str, dict] = {}
+    out: dict[str, dict[str, object]] = {}
     for i, s in enumerate(_ALL_SYMBOLS):
         base = 120.0 + i * 10
         n = 130
@@ -77,13 +78,13 @@ def real_ingest_provider(ctx: RunContext) -> IngestBundle:
     mock_ind = MockIndicatorInputSource(mock_series)
     mock_price = MockPriceSource(mock_series)
 
-    indicator_snapshots: dict = {}
-    price_snapshots: dict = {}
+    indicator_snapshots: dict[str, RawSnapshot] = {}
+    price_snapshots: dict[str, RawSnapshot] = {}
 
     for sym in _ALL_SYMBOLS:
         # --- BTC / ETH: CoinGecko (سری) + Kifpool (اسپات USD) ---
         if sym in _CRYPTO_SYMBOLS:
-            snaps = []
+            snaps: list[RawSnapshot] = []
             if cg_price.supports(sym):
                 try:
                     snaps.append(cg_price.fetch_series(sym, ctx))
@@ -169,7 +170,7 @@ def real_ingest_provider(ctx: RunContext) -> IngestBundle:
         indicator_snapshots[sym] = mock_ind.fetch_series(sym, ctx)
         price_snapshots[sym] = mock_price.fetch(sym, ctx)
 
-    global_snapshots: dict = {}
+    global_snapshots: dict[str, RawSnapshot] = {}
     try:
         global_snapshots["fear_greed"] = fng.fetch(ctx)
         _log.info("real_fear_greed_ok")
@@ -193,7 +194,7 @@ def real_ingest_provider(ctx: RunContext) -> IngestBundle:
         _log.warning("news_fallback_empty err=%s", exc)
         news_items = []
 
-    events: list = []
+    events: list[MacroEvent] = []
     cpi = load_us_cpi_event(_PROJECT_ROOT)
     if cpi is not None:
         events.append(cpi)

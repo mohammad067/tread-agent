@@ -13,6 +13,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from typing import cast
 
 from market_state_engine.core.dtos import NewsItem
 from market_state_engine.core.run_context import RunContext
@@ -118,7 +119,7 @@ def _fetch(url: str, timeout_s: float = 20.0) -> bytes:
         },
     )
     with urllib.request.urlopen(req, timeout=timeout_s) as resp:
-        return resp.read()
+        return cast(bytes, resp.read())
 
 
 def _parse_feed(content: bytes, source: str, defaults: list[str]) -> list[NewsItem]:

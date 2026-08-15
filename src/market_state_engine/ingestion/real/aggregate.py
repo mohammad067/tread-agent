@@ -28,7 +28,8 @@ def aggregate_snapshots(
 
     preferred = _pick(snapshots, prefer_source_id)
     pref_val = _value(preferred)
-    flags: list[str] = list(preferred.deviation_flags or [])
+    flags: list[dict[str, object]] = list(preferred.deviation_flags)
+    has_new_deviation = False
 
     for snap in snapshots:
         if snap is preferred:
@@ -38,9 +39,17 @@ def aggregate_snapshots(
             continue
         dev = abs(other - pref_val) / abs(pref_val) * 100.0
         if dev > max_deviation_pct:
-            flags.append(f"deviation:{snap.source_id}:vs:{preferred.source_id}:{dev:.3f}pct")
+            flags.append(
+                {
+                    "code": "cross_source_deviation",
+                    "from_source": snap.source_id,
+                    "vs_source": preferred.source_id,
+                    "deviation_pct": round(dev, 6),
+                }
+            )
+            has_new_deviation = True
 
-    if flags == list(preferred.deviation_flags or []):
+    if not has_new_deviation:
         return preferred
 
     payload = dict(preferred.payload)
