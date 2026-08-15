@@ -9,7 +9,7 @@ from .coingecko import CoinGeckoClient, CoinGeckoGlobalSource, CoinGeckoPriceSou
 
 __all__ = [
     "CoinGeckoClient",
-    "CoinGeckoPriceSource",
     "CoinGeckoGlobalSource",
+    "CoinGeckoPriceSource",
     "aggregate_snapshots",
 ]

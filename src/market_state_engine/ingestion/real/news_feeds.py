@@ -1,13 +1,9 @@
-"""Multi-market news via public RSS → list[NewsItem].
+"""Multi-market news via public RSS feeds.
 
-روند کار:
-  1) چند فید معتبر را جداگانه می‌گیرد (fail یک فید = ادامه با بقیه)
-  2) XML را به NewsItem تبدیل می‌کند (قرارداد core.dtos)
-  3) asset_tags از روی متن (BTC, ETH, GOLD, WTI, TOTAL_MCAP, …)
-  4) NewsWeigher بعداً quality×relevance×recency می‌زند؛ LLM وزن نمی‌سازد
-
-اسم ماژول عمداً crypto_* نیست تا نفت/طلا/ماکرو هم همین‌جا گسترش یابد.
+Each feed is isolated: a failed fetch does not stop the others. Feed entries
+are normalized into ``NewsItem`` records; deterministic weighting happens later.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -181,7 +177,7 @@ class RssNewsSource:
                 raw = _fetch(url)
                 batch = _parse_feed(raw, source, defaults)
                 _log.info("rss_ok source=%s url=%s n=%s", source, url, len(batch))
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 _log.warning("rss_fail source=%s url=%s err=%s", source, url, exc)
                 continue
             for item in batch:

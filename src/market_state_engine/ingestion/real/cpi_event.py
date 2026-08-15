@@ -28,7 +28,7 @@ def load_us_cpi_event(project_root: Path, rel: Path = _DEFAULT_REL) -> MacroEven
         return None
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _log.warning("cpi_yaml_read_fail path=%s err=%s", path, exc)
         return None
 
@@ -38,8 +38,7 @@ def load_us_cpi_event(project_root: Path, rel: Path = _DEFAULT_REL) -> MacroEven
         consensus = float(raw["consensus"])
         actual_raw = raw.get("actual", None)
         actual = float(actual_raw) if actual_raw is not None else None
-        et = str(raw.get("event_type", "US_CPI")).upper()
-        event_type = EventType.US_CPI if et in ("US_CPI", "CPI") else EventType.US_CPI
+        event_type = EventType.US_CPI
     except (KeyError, TypeError, ValueError) as exc:
         _log.warning("cpi_yaml_invalid path=%s err=%s", path, exc)
         return None

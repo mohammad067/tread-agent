@@ -7,9 +7,6 @@ Policy (MVP):
     and still return the preferred payload (honest flag, no silent average unless asked)
 
 Gate / CMC adapters will append into the same list; this function stays the single merge point.
-
-روند: چند RawSnapshot هم‌نماد → یکی را prefer می‌کند → اگر قیمت‌ها خیلی فرق کنند flag می‌زند.
-     بعداً Gate/CMC به لیست candidates اضافه می‌شوند.
 """
 
 from __future__ import annotations
@@ -41,9 +38,7 @@ def aggregate_snapshots(
             continue
         dev = abs(other - pref_val) / abs(pref_val) * 100.0
         if dev > max_deviation_pct:
-            flags.append(
-                f"deviation:{snap.source_id}:vs:{preferred.source_id}:{dev:.3f}pct"
-            )
+            flags.append(f"deviation:{snap.source_id}:vs:{preferred.source_id}:{dev:.3f}pct")
 
     if flags == list(preferred.deviation_flags or []):
         return preferred

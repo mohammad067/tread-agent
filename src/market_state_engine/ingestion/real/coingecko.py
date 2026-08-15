@@ -8,7 +8,6 @@ Public endpoints used (no API key required for modest rate limits):
      → RawSnapshot(source_id="coingecko") برای هسته.
 """
 
-
 from __future__ import annotations
 
 import json
@@ -65,7 +64,7 @@ def _downsample(values: list[float], n: int) -> list[float]:
     if n <= 1:
         return [values[-1]]
     step = (len(values) - 1) / (n - 1)
-    return [values[int(round(i * step))] for i in range(n)]
+    return [values[round(i * step)] for i in range(n)]
 
 
 def _chart_to_ohlcv(prices: list[list[float]], volumes: list[list[float]]) -> dict[str, Any]:
@@ -80,9 +79,7 @@ def _chart_to_ohlcv(prices: list[list[float]], volumes: list[list[float]]) -> di
     lows = [c * 0.995 for c in closes]
     last_ts = prices[-1][0] if prices else 0
     as_of = (
-        _iso_z(last_ts)
-        if last_ts
-        else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        _iso_z(last_ts) if last_ts else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     )
     value = closes[-1] if closes else 0.0
     return {

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 # Horizon -> number of trailing bars back, assuming a fixed bar interval documented by the caller.
 # The FeatureEngine supplies close series with a known cadence; here we compute % change vs a
-# reference close N bars back. A missing/insufficient horizon returns None (declared as a data gap).درصد تغییر قیمت
+# reference close N bars back. A missing or insufficient horizon is a data gap.
 
 
 def pct_change(current: float, past: float) -> float:
