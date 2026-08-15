@@ -1,13 +1,13 @@
 """IngestBundle: multi-source live ingest + mock fallback.
 
 روند MSE_INGEST=real:
-  1) BTC/ETH ← CoinGecko + Kifpool (USD) → aggregate_snapshots
-  2) GOLD ← CryptoBaz XAUUSD (USD)
-  3) USD_IRR ← Kifpool priceSellIRT (IRT / USDT proxy)
+  1) BTC/ETH ← CoinGecko (سری) + Kifpool (اسپات USD) → aggregate
+  2) GOLD ← CoinGecko pax-gold (USD + سری)
+  3) USD_IRR ← Kifpool live spot + TGJU daily history (IRT)
   4) dominance / mcap ← CoinGecko
   5) fear&greed ← Alternative.me
-  6) news ← RssNewsSource
-  7) WTI / TOTAL_MCAP ← mock (موقت)
+  6) news ← RssNewsSource (CoinTelegraph BTC/ETH/gold + CoinDesk)
+  7) WTI ← TGJU Brent (oil_brent live + energy-brent-oil daily); TOTAL_MCAP mock
   8) CPI ← config/events/us_cpi_latest.yaml
 """
 
@@ -30,9 +30,10 @@ from .aggregate import aggregate_snapshots
 from .coingecko import CoinGeckoClient, CoinGeckoGlobalSource, CoinGeckoPriceSource
 from .cpi_event import load_us_cpi_event
 from .fear_greed import FearGreedSource
-from .kifpool import KifpoolUsdIrrSource
 from .kifpool_crypto import KifpoolCryptoPriceSource
 from .news_feeds import RssNewsSource
+from .tgju_dollar import HybridUsdIrrSource
+from .tgju_oil import TgjuOilSource
 
 _log = logging.getLogger("ingestion.real")
 
@@ -67,7 +68,8 @@ def real_ingest_provider(ctx: RunContext) -> IngestBundle:
     cg_price = CoinGeckoPriceSource(client)
     cg_global = CoinGeckoGlobalSource(client)
     kp_crypto = KifpoolCryptoPriceSource()
-    usd_src = KifpoolUsdIrrSource()
+    usd_src = HybridUsdIrrSource()
+    wti_src = TgjuOilSource()
     fng = FearGreedSource()
     news_src = RssNewsSource()
 
@@ -86,17 +88,16 @@ def real_ingest_provider(ctx: RunContext) -> IngestBundle:
                 try:
                     snaps.append(cg_price.fetch_series(sym, ctx))
                     _log.info("crypto_src_ok symbol=%s source=coingecko", sym)
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     _log.warning("crypto_src_fail symbol=%s source=coingecko err=%s", sym, exc)
             if kp_crypto.supports(sym):
                 try:
                     snaps.append(kp_crypto.fetch_series(sym, ctx))
                     _log.info("crypto_src_ok symbol=%s source=kifpool", sym)
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     _log.warning("crypto_src_fail symbol=%s source=kifpool err=%s", sym, exc)
 
             if snaps:
-                # prefer coingecko: سری تاریخی برای RSI؛ انحراف با kifpool در deviation_flags
                 merged = aggregate_snapshots(
                     snaps,
                     prefer_source_id="coingecko",
@@ -115,7 +116,7 @@ def real_ingest_provider(ctx: RunContext) -> IngestBundle:
                     continue
             _log.warning("real_price_fallback_mock symbol=%s (no live crypto source)", sym)
 
-# --- GOLD ← CoinGecko pax-gold (USD + سری برای 6h/24h/30d) ---
+        # --- GOLD ← CoinGecko pax-gold ---
         if sym == "GOLD" and cg_price.supports(sym):
             try:
                 live = cg_price.fetch_series(sym, ctx)
@@ -125,23 +126,46 @@ def real_ingest_provider(ctx: RunContext) -> IngestBundle:
                     price_snapshots[sym] = merged
                     _log.info("real_price_ok symbol=%s source=%s", sym, merged.source_id)
                     continue
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 _log.warning("real_gold_fallback_mock err=%s", exc)
 
-        # --- USD_IRR ← Kifpool priceSellIRT (IRT) ---
-        if sym == "USD_IRR" and usd_src.supports(sym):
+        # --- WTI ← TGJU Brent (USD) ---
+        if sym == "WTI" and wti_src.supports(sym):
             try:
-                live = usd_src.fetch_series(sym, ctx)
-                merged = aggregate_snapshots([live], prefer_source_id="kifpool")
+                live = wti_src.fetch_series(sym, ctx)
+                merged = aggregate_snapshots([live], prefer_source_id="tgju")
                 if merged is not None:
                     indicator_snapshots[sym] = merged
                     price_snapshots[sym] = merged
-                    _log.info("real_price_ok symbol=%s source=%s", sym, merged.source_id)
+                    _log.info(
+                        "real_price_ok symbol=%s source=%s stale=%s",
+                        sym,
+                        merged.source_id,
+                        merged.is_stale,
+                    )
                     continue
-            except Exception as exc:  # noqa: BLE001
-                _log.warning("real_usd_irr_fallback_mock err=%s", exc)
+            except Exception as exc:
+                _log.warning("real_wti_fallback_mock err=%s", exc)
 
-        # --- بقیه موقت mock ---
+        # --- USD_IRR ← Kifpool live spot + TGJU daily history (IRT) ---
+        if sym == "USD_IRR" and usd_src.supports(sym):
+            try:
+                live = usd_src.fetch_series(sym, ctx)
+                indicator_snapshots[sym] = live
+                price_snapshots[sym] = live
+                _log.info(
+                    "real_price_ok symbol=%s source=%s stale=%s flags=%s",
+                    sym,
+                    live.source_id,
+                    live.is_stale,
+                    live.deviation_flags,
+                )
+                continue
+            except Exception as exc:
+                _log.warning("real_usd_irr_unavailable err=%s", exc)
+                continue
+
+        # --- بقیه موقت mock (مثلاً TOTAL_MCAP یا هر fail بالا) ---
         indicator_snapshots[sym] = mock_ind.fetch_series(sym, ctx)
         price_snapshots[sym] = mock_price.fetch(sym, ctx)
 
@@ -149,7 +173,7 @@ def real_ingest_provider(ctx: RunContext) -> IngestBundle:
     try:
         global_snapshots["fear_greed"] = fng.fetch(ctx)
         _log.info("real_fear_greed_ok")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _log.warning("fear_greed_fallback_mock err=%s", exc)
         global_snapshots["fear_greed"] = MockFearGreedSource(24, _AS_OF_FALLBACK).fetch(ctx)
 
@@ -157,7 +181,7 @@ def real_ingest_provider(ctx: RunContext) -> IngestBundle:
         dom, mcap = cg_global.fetch_dominance_and_mcap(ctx)
         global_snapshots["dominance"] = dom
         global_snapshots["total_mcap"] = mcap
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _log.warning("real_global_fallback_mock err=%s", exc)
         global_snapshots["dominance"] = MockDominanceSource(56.8, _AS_OF_FALLBACK).fetch(ctx)
         global_snapshots["total_mcap"] = MockTotalMcapSource(3.91e12, _AS_OF_FALLBACK).fetch(ctx)
@@ -165,7 +189,7 @@ def real_ingest_provider(ctx: RunContext) -> IngestBundle:
     try:
         news_items = news_src.fetch_items(ctx)
         _log.info("real_news_ok count=%s", len(news_items))
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _log.warning("news_fallback_empty err=%s", exc)
         news_items = []
 
