@@ -4,8 +4,10 @@ Public endpoints used (no API key required for modest rate limits):
   - GET /api/v3/coins/{id}/market_chart
   - GET /api/v3/global
 
-  روند: HTTP به CoinGecko → JSON → payload با closes/highs/lows/volumes/value
-     → RawSnapshot(source_id="coingecko") برای هسته.
+Note: /global/market_cap_chart is PRO-only (error 10005) — not used.
+
+Flow: HTTP → JSON → payload (closes/highs/lows/volumes/value)
+   → RawSnapshot(source_id="coingecko") for the core.
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ from market_state_engine.core.run_context import RunContext
 _COINGECKO_IDS: dict[str, str] = {
     "BTC": "bitcoin",
     "ETH": "ethereum",
-    "GOLD": "pax-gold",  # پروکسی اونس به USD؛ جایگزین: "tether-gold"
+    "GOLD": "pax-gold",
 }
 
 _DEFAULT_BASE = "https://api.coingecko.com/api/v3"
@@ -132,7 +134,6 @@ class CoinGeckoPriceSource:
             content_hash=content_hash(payload),
         )
 
-
 class CoinGeckoGlobalSource:
     def __init__(self, client: CoinGeckoClient | None = None) -> None:
         self._client = client or CoinGeckoClient()
@@ -170,3 +171,33 @@ class CoinGeckoGlobalSource:
             content_hash=content_hash(mcap_payload),
         )
         return dom, mcap
+
+    def fetch_total_mcap_series(self, ctx: RunContext) -> RawSnapshot:
+        data = self._client.get_json("/global")
+        g = data.get("data") or data
+        total = g.get("total_market_cap") or {}
+        live = float(total.get("usd") or 0.0)
+        if live <= 0:
+            raise RuntimeError("CoinGecko global: total_market_cap.usd missing")
+
+        as_of = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        payload: dict[str, object] = {
+            "as_of": as_of,
+            "value": live,
+            "closes": [live],
+            "highs": [live],
+            "lows": [live],
+            "volumes": [0.0],
+            "currency": "USD",
+            "history_limited": True,
+        }
+        return RawSnapshot(
+            source_id="coingecko",
+            symbol="TOTAL_MCAP",
+            payload=payload,
+            as_of=as_of,
+            is_stale=False,
+            stale_reason=None,
+            deviation_flags=[],
+            content_hash=content_hash(payload),
+        )
