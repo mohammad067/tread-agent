@@ -4,11 +4,11 @@ MSE_INGEST=real flow:
   1) BTC/ETH ← CoinGecko series + Kifpool spot USD → aggregate
   2) GOLD ← CoinGecko pax-gold
   3) USD_IRR ← Kifpool live + TGJU daily history (IRT)
-  4) dominance / mcap (global) ← CoinGecko /global
+  4) dominance / mcap (global) ← CoinPaprika /v1/global
   5) fear&greed ← Alternative.me
   6) news ← RssNewsSource
   7) WTI ← TGJU Brent (oil_brent + energy-brent-oil)
-  8) TOTAL_MCAP ← CoinGecko /global + market_cap_chart
+  8) TOTAL_MCAP ← CoinPaprika /v1/global (24h-class; other horizons are gaps)
   9) CPI ← config/events/us_cpi_latest.yaml
 """
 
@@ -20,16 +20,15 @@ from pathlib import Path
 from market_state_engine.core.dtos import MacroEvent, RawSnapshot
 from market_state_engine.core.run_context import RunContext
 from market_state_engine.ingestion.mocks.mock_sources import (
-    MockDominanceSource,
     MockFearGreedSource,
     MockIndicatorInputSource,
     MockPriceSource,
-    MockTotalMcapSource,
 )
 from market_state_engine.pipeline.orchestrator import IngestBundle
 
 from .aggregate import aggregate_snapshots
-from .coingecko import CoinGeckoClient, CoinGeckoGlobalSource, CoinGeckoPriceSource
+from .coingecko import CoinGeckoClient, CoinGeckoPriceSource
+from .coinpaprika import CoinPaprikaGlobalSource, CoinPaprikaSnapshots
 from .cpi_event import load_us_cpi_event
 from .fear_greed import FearGreedSource
 from .kifpool_crypto import KifpoolCryptoPriceSource
@@ -42,7 +41,8 @@ _log = logging.getLogger("ingestion.real")
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
 _CRYPTO_SYMBOLS = ("BTC", "ETH")
-_ALL_SYMBOLS = ("BTC", "ETH", "GOLD", "WTI", "USD_IRR", "TOTAL_MCAP")
+_MOCK_FALLBACK_SYMBOLS = ("BTC", "ETH", "GOLD", "WTI", "USD_IRR")
+_ALL_SYMBOLS = (*_MOCK_FALLBACK_SYMBOLS, "TOTAL_MCAP")
 _AS_OF_FALLBACK = "2026-07-14T12:45:00Z"
 
 
@@ -50,7 +50,7 @@ def _mock_series_bundle() -> dict[str, dict[str, object]]:
     import math
 
     out: dict[str, dict[str, object]] = {}
-    for i, s in enumerate(_ALL_SYMBOLS):
+    for i, s in enumerate(_MOCK_FALLBACK_SYMBOLS):
         base = 120.0 + i * 10
         n = 130
         closes = [base - 0.5 * j + 2.0 * math.sin(j / 3.0) for j in range(n)]
@@ -68,12 +68,18 @@ def _mock_series_bundle() -> dict[str, dict[str, object]]:
 def real_ingest_provider(ctx: RunContext) -> IngestBundle:
     client = CoinGeckoClient()
     cg_price = CoinGeckoPriceSource(client)
-    cg_global = CoinGeckoGlobalSource(client)
+    coinpaprika = CoinPaprikaGlobalSource()
     kp_crypto = KifpoolCryptoPriceSource()
     usd_src = HybridUsdIrrSource()
     wti_src = TgjuOilSource()
     fng = FearGreedSource()
     news_src = RssNewsSource()
+
+    coinpaprika_snapshots: CoinPaprikaSnapshots | None = None
+    try:
+        coinpaprika_snapshots = coinpaprika.fetch_all(ctx)
+    except Exception as exc:
+        _log.warning("real_coinpaprika_unavailable err=%s", exc)
 
     mock_series = _mock_series_bundle()
     mock_ind = MockIndicatorInputSource(mock_series)
@@ -177,20 +183,17 @@ def real_ingest_provider(ctx: RunContext) -> IngestBundle:
 
         # --- TOTAL_MCAP ---
         if sym == "TOTAL_MCAP":
-            try:
-                live = cg_global.fetch_total_mcap_series(ctx)
-                merged = aggregate_snapshots([live], prefer_source_id="coingecko")
-                if merged is not None:
-                    indicator_snapshots[sym] = merged
-                    price_snapshots[sym] = merged
-                    _log.info(
-                        "real_price_ok symbol=TOTAL_MCAP source=%s value=%s",
-                        merged.source_id,
-                        (merged.payload or {}).get("value"),
-                    )
-                    continue
-            except Exception as exc:
-                _log.warning("real_total_mcap_fallback_mock err=%s", exc)
+            if coinpaprika_snapshots is not None:
+                live = coinpaprika_snapshots.total_mcap
+                indicator_snapshots[sym] = live
+                price_snapshots[sym] = live
+                _log.info(
+                    "real_price_ok symbol=TOTAL_MCAP source=coinpaprika value=%s",
+                    live.payload.get("value"),
+                )
+            else:
+                _log.warning("real_total_mcap_unavailable source=coinpaprika")
+            continue
 
         # --- mock only if branches above did not continue ---
         indicator_snapshots[sym] = mock_ind.fetch_series(sym, ctx)
@@ -206,18 +209,11 @@ def real_ingest_provider(ctx: RunContext) -> IngestBundle:
             24, _AS_OF_FALLBACK
         ).fetch(ctx)
 
-    try:
-        dom, mcap = cg_global.fetch_dominance_and_mcap(ctx)
-        global_snapshots["dominance"] = dom
-        global_snapshots["total_mcap"] = mcap
-    except Exception as exc:
-        _log.warning("real_global_fallback_mock err=%s", exc)
-        global_snapshots["dominance"] = MockDominanceSource(
-            56.8, _AS_OF_FALLBACK
-        ).fetch(ctx)
-        global_snapshots["total_mcap"] = MockTotalMcapSource(
-            3.91e12, _AS_OF_FALLBACK
-        ).fetch(ctx)
+    if coinpaprika_snapshots is not None:
+        global_snapshots["dominance"] = coinpaprika_snapshots.dominance
+        global_snapshots["total_mcap"] = coinpaprika_snapshots.global_mcap
+    else:
+        _log.warning("real_global_unavailable source=coinpaprika")
 
     try:
         news_items = news_src.fetch_items(ctx)
