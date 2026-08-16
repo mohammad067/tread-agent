@@ -36,12 +36,6 @@ def _floats(raw: object) -> list[float]:
     return [float(x) for x in raw]
 
 
-def _optional_float(value: object) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    return float(value)
-
-
 class FeatureEngine:
     def __init__(self, config: ConfigBundle) -> None:
         self._config = config
@@ -98,17 +92,10 @@ class FeatureEngine:
         lows = _floats(payload.get("lows"))
         volumes = _floats(payload.get("volumes"))
 
-        explicit_changes = payload.get("horizon_changes")
-        if isinstance(explicit_changes, dict):
-            change_values = {
-                horizon: _optional_float(explicit_changes.get(horizon))
-                for horizon in _HORIZON_BARS
-            }
-        else:
-            change_values = {
-                horizon: changes_mod.horizon_change(closes, bars)
-                for horizon, bars in _HORIZON_BARS.items()
-            }
+        change_values = {
+            horizon: changes_mod.horizon_change(closes, bars)
+            for horizon, bars in _HORIZON_BARS.items()
+        }
         asset_changes = AssetChanges.model_validate(change_values)
 
         indicators = self._indicators(asset_class, closes, highs, lows, volumes)

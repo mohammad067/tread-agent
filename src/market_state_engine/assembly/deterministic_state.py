@@ -277,10 +277,4 @@ def _data_gaps(features: object) -> list[str]:
     f = features  # AssetFeatures
     if f.changes.h6 is None:  # type: ignore[attr-defined]
         gaps.append("missing_6h_change")
-    if f.changes.h24 is None:  # type: ignore[attr-defined]
-        gaps.append("missing_24h_change")
-    if f.changes.d7 is None:  # type: ignore[attr-defined]
-        gaps.append("missing_7d_change")
-    if f.changes.d30 is None:  # type: ignore[attr-defined]
-        gaps.append("missing_30d_change")
     return gaps
