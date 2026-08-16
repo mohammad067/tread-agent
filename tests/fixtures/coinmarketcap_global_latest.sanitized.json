@@ -1,0 +1,21 @@
+{
+  "status": {
+    "timestamp": "2026-08-16T12:00:02.000Z",
+    "error_code": 0,
+    "error_message": null,
+    "elapsed": 12,
+    "credit_count": 1
+  },
+  "data": {
+    "btc_dominance": 55.77,
+    "last_updated": "2026-08-16T12:00:00.000Z",
+    "quote": {
+      "USD": {
+        "total_market_cap": 2264417762062.0,
+        "total_market_cap_yesterday": 2264870736209.2417,
+        "total_market_cap_yesterday_percentage_change": -0.02,
+        "last_updated": "2026-08-16T12:00:00.000Z"
+      }
+    }
+  }
+}

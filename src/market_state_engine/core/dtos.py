@@ -32,6 +32,15 @@ class RawSnapshot(_Dto):
     content_hash: str
 
 
+class TotalMcapSample(_Dto):
+    """One persisted TOTAL_MCAP observation used only for historical horizons."""
+
+    symbol: str
+    value: float = Field(gt=0.0)
+    as_of: str
+    run_id: str | None = None
+
+
 # --- FeatureSet (feature_set.v1.json) --------------------------------------------------
 class AssetChanges(_Dto):
     h6: float | None = Field(alias="6h")

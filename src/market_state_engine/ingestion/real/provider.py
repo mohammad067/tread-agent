@@ -4,32 +4,37 @@ MSE_INGEST=real flow:
   1) BTC/ETH ← CoinGecko series + Kifpool spot USD → aggregate
   2) GOLD ← CoinGecko pax-gold
   3) USD_IRR ← Kifpool live + TGJU daily history (IRT)
-  4) dominance / mcap (global) ← CoinGecko /global
+  4) dominance / mcap (global) ← CoinMarketCap keyless global metrics
   5) fear&greed ← Alternative.me
   6) news ← RssNewsSource
   7) WTI ← TGJU Brent (oil_brent + energy-brent-oil)
-  8) TOTAL_MCAP ← CoinGecko /global + market_cap_chart
+  8) TOTAL_MCAP ← CoinMarketCap keyless global metrics (real 24h only)
   9) CPI ← config/events/us_cpi_latest.yaml
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol
 
-from market_state_engine.core.dtos import MacroEvent, RawSnapshot
+from market_state_engine.core.dtos import MacroEvent, RawSnapshot, TotalMcapSample
 from market_state_engine.core.run_context import RunContext
 from market_state_engine.ingestion.mocks.mock_sources import (
-    MockDominanceSource,
     MockFearGreedSource,
     MockIndicatorInputSource,
     MockPriceSource,
-    MockTotalMcapSource,
 )
 from market_state_engine.pipeline.orchestrator import IngestBundle
 
 from .aggregate import aggregate_snapshots
-from .coingecko import CoinGeckoClient, CoinGeckoGlobalSource, CoinGeckoPriceSource
+from .coingecko import CoinGeckoClient, CoinGeckoPriceSource
+from .coinmarketcap import (
+    CoinMarketCapGlobalSource,
+    CoinMarketCapSnapshots,
+    enrich_total_mcap_history,
+)
 from .cpi_event import load_us_cpi_event
 from .fear_greed import FearGreedSource
 from .kifpool_crypto import KifpoolCryptoPriceSource
@@ -42,15 +47,31 @@ _log = logging.getLogger("ingestion.real")
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
 _CRYPTO_SYMBOLS = ("BTC", "ETH")
-_ALL_SYMBOLS = ("BTC", "ETH", "GOLD", "WTI", "USD_IRR", "TOTAL_MCAP")
+_MOCK_FALLBACK_SYMBOLS = ("BTC", "ETH", "GOLD", "WTI", "USD_IRR")
+_ALL_SYMBOLS = (*_MOCK_FALLBACK_SYMBOLS, "TOTAL_MCAP")
 _AS_OF_FALLBACK = "2026-07-14T12:45:00Z"
+
+
+class TotalMcapHistoryStore(Protocol):
+    def record_and_list(
+        self, sample: TotalMcapSample, *, limit: int = 130
+    ) -> list[TotalMcapSample]: ...
+
+
+def build_real_ingest_provider(
+    history_store: TotalMcapHistoryStore,
+) -> Callable[[RunContext], IngestBundle]:
+    def _ingest(ctx: RunContext) -> IngestBundle:
+        return real_ingest_provider(ctx, history_store=history_store)
+
+    return _ingest
 
 
 def _mock_series_bundle() -> dict[str, dict[str, object]]:
     import math
 
     out: dict[str, dict[str, object]] = {}
-    for i, s in enumerate(_ALL_SYMBOLS):
+    for i, s in enumerate(_MOCK_FALLBACK_SYMBOLS):
         base = 120.0 + i * 10
         n = 130
         closes = [base - 0.5 * j + 2.0 * math.sin(j / 3.0) for j in range(n)]
@@ -65,15 +86,45 @@ def _mock_series_bundle() -> dict[str, dict[str, object]]:
     return out
 
 
-def real_ingest_provider(ctx: RunContext) -> IngestBundle:
+def real_ingest_provider(
+    ctx: RunContext,
+    *,
+    history_store: TotalMcapHistoryStore | None = None,
+) -> IngestBundle:
     client = CoinGeckoClient()
     cg_price = CoinGeckoPriceSource(client)
-    cg_global = CoinGeckoGlobalSource(client)
+    coinmarketcap = CoinMarketCapGlobalSource()
     kp_crypto = KifpoolCryptoPriceSource()
     usd_src = HybridUsdIrrSource()
     wti_src = TgjuOilSource()
     fng = FearGreedSource()
     news_src = RssNewsSource()
+
+    coinmarketcap_snapshots: CoinMarketCapSnapshots | None = None
+    try:
+        coinmarketcap_snapshots = coinmarketcap.fetch_all(ctx)
+    except Exception as exc:
+        _log.warning("real_coinmarketcap_unavailable err=%s", exc)
+    if coinmarketcap_snapshots is not None and history_store is not None:
+        try:
+            live = coinmarketcap_snapshots.total_mcap
+            value = live.payload.get("value")
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise RuntimeError("CoinMarketCap TOTAL_MCAP value is invalid")
+            sample = TotalMcapSample(
+                symbol="TOTAL_MCAP",
+                value=float(value),
+                as_of=live.as_of,
+                run_id=ctx.run_id,
+            )
+            history = history_store.record_and_list(sample, limit=130)
+            coinmarketcap_snapshots = CoinMarketCapSnapshots(
+                dominance=coinmarketcap_snapshots.dominance,
+                global_mcap=coinmarketcap_snapshots.global_mcap,
+                total_mcap=enrich_total_mcap_history(live, history),
+            )
+        except Exception as exc:
+            _log.warning("real_total_mcap_history_unavailable err=%s", exc)
 
     mock_series = _mock_series_bundle()
     mock_ind = MockIndicatorInputSource(mock_series)
@@ -177,20 +228,17 @@ def real_ingest_provider(ctx: RunContext) -> IngestBundle:
 
         # --- TOTAL_MCAP ---
         if sym == "TOTAL_MCAP":
-            try:
-                live = cg_global.fetch_total_mcap_series(ctx)
-                merged = aggregate_snapshots([live], prefer_source_id="coingecko")
-                if merged is not None:
-                    indicator_snapshots[sym] = merged
-                    price_snapshots[sym] = merged
-                    _log.info(
-                        "real_price_ok symbol=TOTAL_MCAP source=%s value=%s",
-                        merged.source_id,
-                        (merged.payload or {}).get("value"),
-                    )
-                    continue
-            except Exception as exc:
-                _log.warning("real_total_mcap_fallback_mock err=%s", exc)
+            if coinmarketcap_snapshots is not None:
+                live = coinmarketcap_snapshots.total_mcap
+                indicator_snapshots[sym] = live
+                price_snapshots[sym] = live
+                _log.info(
+                    "real_price_ok symbol=TOTAL_MCAP source=coinmarketcap value=%s",
+                    live.payload.get("value"),
+                )
+            else:
+                _log.warning("real_total_mcap_unavailable source=coinmarketcap")
+            continue
 
         # --- mock only if branches above did not continue ---
         indicator_snapshots[sym] = mock_ind.fetch_series(sym, ctx)
@@ -206,18 +254,11 @@ def real_ingest_provider(ctx: RunContext) -> IngestBundle:
             24, _AS_OF_FALLBACK
         ).fetch(ctx)
 
-    try:
-        dom, mcap = cg_global.fetch_dominance_and_mcap(ctx)
-        global_snapshots["dominance"] = dom
-        global_snapshots["total_mcap"] = mcap
-    except Exception as exc:
-        _log.warning("real_global_fallback_mock err=%s", exc)
-        global_snapshots["dominance"] = MockDominanceSource(
-            56.8, _AS_OF_FALLBACK
-        ).fetch(ctx)
-        global_snapshots["total_mcap"] = MockTotalMcapSource(
-            3.91e12, _AS_OF_FALLBACK
-        ).fetch(ctx)
+    if coinmarketcap_snapshots is not None:
+        global_snapshots["dominance"] = coinmarketcap_snapshots.dominance
+        global_snapshots["total_mcap"] = coinmarketcap_snapshots.global_mcap
+    else:
+        _log.warning("real_global_unavailable source=coinmarketcap")
 
     try:
         news_items = news_src.fetch_items(ctx)

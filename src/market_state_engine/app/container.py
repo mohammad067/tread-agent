@@ -65,7 +65,10 @@ def build_container(
     root: Path,
     *,
     env: str = "dev",
-    ingest_provider: Callable[[RunContext], IngestBundle],
+    ingest_provider: Callable[[RunContext], IngestBundle] | None = None,
+    ingest_provider_factory: (
+        Callable[[Database], Callable[[RunContext], IngestBundle]] | None
+    ) = None,
     overrides: Mapping[str, ProviderAdapter] | None = None,
     clock: Callable[[], datetime] = _utc_now,
     previous_state_provider: Callable[[], RegimeState | None] | None = None,
@@ -109,9 +112,16 @@ def build_container(
         call_record_sink=sink,
         pipeline_version=_PIPELINE_VERSION,
     )
+    if (ingest_provider is None) == (ingest_provider_factory is None):
+        raise ValueError("provide exactly one of ingest_provider or ingest_provider_factory")
+    resolved_ingest = (
+        ingest_provider
+        if ingest_provider is not None
+        else ingest_provider_factory(database)  # type: ignore[misc]
+    )
     scheduler = Scheduler(
         run_service=run_service,
-        ingest_provider=ingest_provider,
+        ingest_provider=resolved_ingest,
         clock=clock,
         previous_state_provider=previous_state_provider,
         versions={"pipeline": _PIPELINE_VERSION, "rulebook": rulebook_version},

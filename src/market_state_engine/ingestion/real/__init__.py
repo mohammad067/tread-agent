@@ -6,10 +6,18 @@ happens in ``aggregate.py`` before the pipeline sees an IngestBundle.
 
 from .aggregate import aggregate_snapshots
 from .coingecko import CoinGeckoClient, CoinGeckoGlobalSource, CoinGeckoPriceSource
+from .coinmarketcap import (
+    CoinMarketCapClient,
+    CoinMarketCapGlobalSource,
+    CoinMarketCapSnapshots,
+)
 
 __all__ = [
     "CoinGeckoClient",
     "CoinGeckoGlobalSource",
     "CoinGeckoPriceSource",
+    "CoinMarketCapClient",
+    "CoinMarketCapGlobalSource",
+    "CoinMarketCapSnapshots",
     "aggregate_snapshots",
 ]

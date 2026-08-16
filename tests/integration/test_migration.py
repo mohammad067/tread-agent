@@ -18,6 +18,7 @@ _EXPECTED_TABLES = {
     "event_log",
     "news_items",
     "rule_activations",
+    "total_mcap_samples",
 }
 
 

@@ -11,3 +11,4 @@ sources:
   social_aggregate: 0.3
   coindesk: 0.75
   cointelegraph: 0.70
+  reuters_via_gn: 0.85

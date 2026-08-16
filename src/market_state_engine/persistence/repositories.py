@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from market_state_engine.core.dtos import TotalMcapSample
 from market_state_engine.core.hashing import content_hash
 
 from .models import (
@@ -23,6 +24,7 @@ from .models import (
     RunInputRow,
     RunOutputRow,
     RunRow,
+    TotalMcapSampleRow,
 )
 
 
@@ -239,6 +241,48 @@ class RuleActivationRepository:
     def list_for_run(self, run_id: str) -> list[RuleActivationRow]:
         stmt = select(RuleActivationRow).where(RuleActivationRow.run_id == run_id)
         return list(self._s.execute(stmt).scalars().all())
+
+
+class TotalMcapSampleRepository:
+    """Idempotent TOTAL_MCAP sample storage and bounded chronological reads."""
+
+    def __init__(self, session: Session) -> None:
+        self._s = session
+
+    def upsert(self, sample: TotalMcapSample) -> TotalMcapSampleRow:
+        key = (sample.symbol, sample.as_of)
+        row = self._s.get(TotalMcapSampleRow, key)
+        if row is None:
+            row = TotalMcapSampleRow(
+                symbol=sample.symbol,
+                value=sample.value,
+                as_of=sample.as_of,
+                run_id=sample.run_id,
+            )
+            self._s.add(row)
+        else:
+            row.value = sample.value
+            row.run_id = sample.run_id
+        self._s.flush()
+        return row
+
+    def list_recent(self, symbol: str, *, limit: int = 130) -> list[TotalMcapSample]:
+        stmt = (
+            select(TotalMcapSampleRow)
+            .where(TotalMcapSampleRow.symbol == symbol)
+            .order_by(TotalMcapSampleRow.as_of.desc())
+            .limit(limit)
+        )
+        rows = list(reversed(self._s.execute(stmt).scalars().all()))
+        return [
+            TotalMcapSample(
+                symbol=row.symbol,
+                value=row.value,
+                as_of=row.as_of,
+                run_id=row.run_id,
+            )
+            for row in rows
+        ]
 
 
 # --- helpers -------------------------------------------------------------------------

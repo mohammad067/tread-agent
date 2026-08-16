@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from market_state_engine.core.dtos import TotalMcapSample
 from market_state_engine.persistence.models import Base
 from market_state_engine.persistence.repositories import (
     CallRecordRepository,
@@ -9,6 +10,7 @@ from market_state_engine.persistence.repositories import (
     NewsRepository,
     RuleActivationRepository,
     RunRepository,
+    TotalMcapSampleRepository,
 )
 from market_state_engine.persistence.session import Database, build_engine, create_all
 
@@ -32,8 +34,38 @@ def test_create_all_builds_every_table() -> None:
         "event_log",
         "news_items",
         "rule_activations",
+        "total_mcap_samples",
     }
     assert expected <= set(Base.metadata.tables)
+
+
+def test_total_mcap_samples_upsert_and_read_chronologically() -> None:
+    db = _memory_db()
+    original = TotalMcapSample(
+        symbol="TOTAL_MCAP",
+        value=100.0,
+        as_of="2026-08-01T00:00:00Z",
+        run_id="run-1",
+    )
+    replacement = original.model_copy(update={"value": 105.0, "run_id": "run-2"})
+    newer = TotalMcapSample(
+        symbol="TOTAL_MCAP",
+        value=110.0,
+        as_of="2026-08-02T00:00:00Z",
+        run_id="run-3",
+    )
+    with db.session() as session:
+        repository = TotalMcapSampleRepository(session)
+        repository.upsert(original)
+        repository.upsert(replacement)
+        repository.upsert(newer)
+        samples = repository.list_recent("TOTAL_MCAP", limit=130)
+
+    assert [(sample.as_of, sample.value) for sample in samples] == [
+        ("2026-08-01T00:00:00Z", 105.0),
+        ("2026-08-02T00:00:00Z", 110.0),
+    ]
+    assert samples[0].run_id == "run-2"
 
 
 def test_marketstaterun_persisted_and_read_back() -> None:

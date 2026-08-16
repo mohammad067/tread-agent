@@ -157,3 +157,14 @@ class RuleActivationRow(Base):
     horizon: Mapped[str] = mapped_column(String(16))
     decay_remaining: Mapped[float] = mapped_column(Float)
     created_at: Mapped[str] = mapped_column(_TS)
+
+
+class TotalMcapSampleRow(Base):
+    """Deduplicated TOTAL_MCAP observations keyed by symbol and source timestamp."""
+
+    __tablename__ = "total_mcap_samples"
+
+    symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
+    as_of: Mapped[str] = mapped_column(_TS, primary_key=True)
+    value: Mapped[float] = mapped_column(Float)
+    run_id: Mapped[str | None] = mapped_column(_ULID, nullable=True)

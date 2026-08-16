@@ -42,6 +42,17 @@ _FEEDS: list[tuple[str, str, list[str]]] = [
         "coindesk",
         ["BTC", "ETH"],
     ),
+    # Oil / energy via Google News → Reuters (no API key)
+    (
+        "https://news.google.com/rss/search?q=(oil+OR+crude)+site:reuters.com&hl=en-US&gl=US&ceid=US:en",
+        "reuters_via_gn",
+        ["WTI"],
+    ),
+    (
+        "https://news.google.com/rss/search?q=site:reuters.com/business/energy+when:1d&hl=en-US&gl=US&ceid=US:en",
+        "reuters_via_gn",
+        ["WTI"],
+    ),
 ]
 
 _MAX_ITEMS = 40
@@ -50,7 +61,7 @@ _TAG_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
     ("BTC", ("bitcoin", "btc", "satoshi")),
     ("ETH", ("ethereum", "vitalik", " ether")),
     ("GOLD", (" gold", "xau", "bullion", "tether gold", "pax gold")),
-    ("WTI", ("crude", "oil price", "wti", "brent")),
+    ("WTI", ("crude", "oil price", "wti", "brent", "opec", "petroleum")),
     ("TOTAL_MCAP", ("fed", "fomc", "cpi", "inflation", "rate hike", "rate cut", "sec ")),
 ]
 
@@ -160,7 +171,7 @@ def _parse_feed(content: bytes, source: str, defaults: list[str]) -> list[NewsIt
 
 
 class RssNewsSource:
-    """NewsSource-compatible for any market tags (crypto + gold; energy later)."""
+    """NewsSource-compatible for crypto, gold, and energy (WTI) feeds."""
 
     def __init__(
         self,

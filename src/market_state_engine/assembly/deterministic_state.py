@@ -198,7 +198,7 @@ class DeterministicStateAssembler:
             regime_sensitivity=RegimeSensitivity(cfg.regime_sensitivity.value),
             activated_rules=rule_activations,
             causal_links=causal_links,
-            data_gaps=_data_gaps(features),
+            data_gaps=_data_gaps(symbol, features),
         )
 
     def _price(
@@ -272,9 +272,16 @@ def _fg_label(value: int) -> FearGreedLabel:
     return FearGreedLabel.EXTREME_GREED
 
 
-def _data_gaps(features: object) -> list[str]:
+def _data_gaps(symbol: str, features: object) -> list[str]:
     gaps: list[str] = []
     f = features  # AssetFeatures
     if f.changes.h6 is None:  # type: ignore[attr-defined]
         gaps.append("missing_6h_change")
+    if symbol == "TOTAL_MCAP":
+        if f.changes.h24 is None:  # type: ignore[attr-defined]
+            gaps.append("missing_24h_change")
+        if f.changes.d7 is None:  # type: ignore[attr-defined]
+            gaps.append("missing_7d_change")
+        if f.changes.d30 is None:  # type: ignore[attr-defined]
+            gaps.append("missing_30d_change")
     return gaps
