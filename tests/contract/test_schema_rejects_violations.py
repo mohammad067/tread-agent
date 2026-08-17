@@ -98,3 +98,36 @@ def test_rule_schema_rejects_empty_rationale(load_golden_yaml: Any, make_validat
     rule = copy.deepcopy(load_golden_yaml("rule.cpi_hot.corrected.yaml"))
     rule["economic_rationale"] = ""  # minLength 1
     assert _is_invalid(validator, rule)
+
+
+@pytest.mark.contract
+def test_news_digest_v2_rejects_legacy_scalar_item(make_validator: Any) -> None:
+    validator = make_validator("news_digest.v2.json")
+    legacy = {
+        "run_id": "run-1",
+        "items": [
+            {
+                "news_id": "news-1",
+                "title": "Legacy item",
+                "source": "wire",
+                "published_at": "2026-08-17T00:00:00Z",
+                "source_quality": 0.9,
+                "relevance": 1.0,
+                "recency_decay": 1.0,
+                "effective_weight": 0.9,
+            }
+        ],
+        "weighting_versions": {},
+    }
+    assert _is_invalid(validator, legacy)
+
+
+@pytest.mark.contract
+def test_news_digest_v3_requires_evidence_text(
+    load_golden_json: Any, make_validator: Any
+) -> None:
+    validator = make_validator("news_digest.v3.json")
+    request = copy.deepcopy(load_golden_json("reasoning_request.sentiment.json"))
+    digest = request["payload"]["news_digest"]
+    del digest["items"][0]["evidence_text"]
+    assert _is_invalid(validator, digest)

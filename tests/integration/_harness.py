@@ -69,10 +69,10 @@ def ingest_provider(ctx: object) -> IngestBundle:
         news_items=[
             NewsItem(
                 news_id="n1",
-                title="Bitcoin falls after hot CPI",
+                title="Market update",
+                body="Bitcoin falls after hot CPI",
                 source="wire_reuters",
                 published_at="2026-07-14T12:35:00Z",
-                asset_tags=["BTC"],
             )
         ],
     )

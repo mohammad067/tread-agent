@@ -9,16 +9,18 @@ prompts, or call providers; they persist what the pipeline already produced.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from market_state_engine.core.dtos import TotalMcapSample
+from market_state_engine.core.dtos import RawSnapshot, TotalMcapSample
 from market_state_engine.core.hashing import content_hash
 
 from .models import (
     CallRecordRow,
     EventLogRow,
+    LastGoodSnapshotRow,
     NewsItemRow,
     RuleActivationRow,
     RunInputRow,
@@ -283,6 +285,55 @@ class TotalMcapSampleRepository:
             )
             for row in rows
         ]
+
+
+class LastGoodSnapshotRepository:
+    """Upsert and retrieve the latest successful snapshot per symbol."""
+
+    def __init__(self, session: Session) -> None:
+        self._s = session
+
+    def upsert(self, snapshot: RawSnapshot) -> LastGoodSnapshotRow:
+        if snapshot.symbol is None:
+            raise ValueError("last-good snapshot requires a symbol")
+        row = self._s.get(LastGoodSnapshotRow, snapshot.symbol)
+        if row is not None and snapshot.as_of < row.as_of:
+            return row
+        if row is None:
+            row = LastGoodSnapshotRow(
+                symbol=snapshot.symbol,
+                source_id=snapshot.source_id,
+                payload=dict(snapshot.payload),
+                as_of=snapshot.as_of,
+                deviation_flags=list(snapshot.deviation_flags),
+                content_hash=snapshot.content_hash,
+            )
+            self._s.add(row)
+        else:
+            row.source_id = snapshot.source_id
+            row.payload = dict(snapshot.payload)
+            row.as_of = snapshot.as_of
+            row.deviation_flags = list(snapshot.deviation_flags)
+            row.content_hash = snapshot.content_hash
+        self._s.flush()
+        return row
+
+    def get(self, symbol: str) -> RawSnapshot | None:
+        row = self._s.get(LastGoodSnapshotRow, symbol)
+        if row is None:
+            return None
+        return RawSnapshot(
+            source_id=row.source_id,
+            symbol=row.symbol,
+            payload=dict(row.payload),
+            as_of=row.as_of,
+            is_stale=True,
+            stale_reason="last_good",
+            deviation_flags=[
+                dict(cast(dict[str, object], flag)) for flag in row.deviation_flags
+            ],
+            content_hash=row.content_hash,
+        )
 
 
 # --- helpers -------------------------------------------------------------------------

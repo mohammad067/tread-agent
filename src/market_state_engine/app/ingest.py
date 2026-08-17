@@ -23,7 +23,7 @@ from market_state_engine.ingestion.mocks.mock_sources import (
 from market_state_engine.pipeline.orchestrator import IngestBundle
 
 _SYMBOLS = ("BTC", "ETH", "GOLD", "WTI", "USD_IRR", "TOTAL_MCAP")
-_AS_OF = "2026-07-14T12:45:00Z"
+_AS_OF = "2026-08-17T12:45:00Z"
 
 
 def _series(base: float, n: int = 130) -> dict[str, object]:
@@ -55,7 +55,7 @@ def mock_ingest_provider(ctx: RunContext) -> IngestBundle:
             MacroEvent(
                 event_id="us_cpi_2026_07",
                 event_type=EventType.US_CPI,
-                scheduled_at="2026-07-14T12:30:00Z",
+                scheduled_at="2026-08-17T12:30:00Z",
                 consensus=0.3,
                 actual=0.45,
             )

@@ -9,15 +9,27 @@
         {
           "news_id": "news_2026_07_14_001",
           "title": "US core CPI comes in hotter than expected at 0.4% m/m",
+          "evidence_text": "Core CPI exceeded consensus and raised rate expectations.",
           "source": "wire_reuters",
           "published_at": "2026-07-14T12:35:00Z",
           "source_quality": 0.95,
-          "relevance": 1.0,
           "recency_decay": 0.98,
-          "effective_weight": 0.931
+          "asset_weights": {
+            "BTC": { "relevance": 0.75, "effective_weight": 0.69825 },
+            "ETH": { "relevance": 0.75, "effective_weight": 0.69825 },
+            "GOLD": { "relevance": 0.9, "effective_weight": 0.8379 },
+            "WTI": { "relevance": 0.55, "effective_weight": 0.51205 },
+            "USD_IRR": { "relevance": 0.7, "effective_weight": 0.6517 },
+            "TOTAL_MCAP": { "relevance": 0.85, "effective_weight": 0.79135 }
+          },
+          "max_effective_weight": 0.8379
         }
       ],
-      "weighting_versions": { "source_quality": "1.0.0", "half_lives": "1.0.0" }
+      "weighting_versions": {
+        "source_quality": "1.0.0",
+        "half_lives": "1.0.0",
+        "relevance_model": "per_asset_v3"
+      }
     }
   },
   "constraints": {

@@ -42,6 +42,17 @@ def test_reasoning_request_fixture_validates(
 
 
 @pytest.mark.contract
+def test_sentiment_golden_contains_valid_news_digest_v3(
+    load_golden_json: Any, make_validator: Any
+) -> None:
+    request = load_golden_json("reasoning_request.sentiment.json")
+    digest = request["payload"]["news_digest"]
+    validator = make_validator("news_digest.v3.json")
+    errors = sorted(validator.iter_errors(digest), key=lambda e: list(e.path))
+    assert not errors, "\n".join(f"{list(e.path)}: {e.message}" for e in errors)
+
+
+@pytest.mark.contract
 def test_call_record_fixture_validates(load_golden_json: Any, make_validator: Any) -> None:
     validator = make_validator("call_record.v1.json")
     doc = load_golden_json("call_record.example.json")

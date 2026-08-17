@@ -1,4 +1,4 @@
-"""IngestBundle: multi-source live ingest + mock fallback.
+"""IngestBundle: multi-source live ingest + persisted last-good fallback.
 
 MSE_INGEST=real flow:
   1) BTC/ETH ← CoinGecko series + Kifpool spot USD → aggregate
@@ -58,11 +58,22 @@ class TotalMcapHistoryStore(Protocol):
     ) -> list[TotalMcapSample]: ...
 
 
+class LastGoodSnapshotStore(Protocol):
+    def record(self, snapshot: RawSnapshot) -> None: ...
+
+    def get(self, symbol: str) -> RawSnapshot | None: ...
+
+
 def build_real_ingest_provider(
     history_store: TotalMcapHistoryStore,
+    last_good_store: LastGoodSnapshotStore,
 ) -> Callable[[RunContext], IngestBundle]:
     def _ingest(ctx: RunContext) -> IngestBundle:
-        return real_ingest_provider(ctx, history_store=history_store)
+        return real_ingest_provider(
+            ctx,
+            history_store=history_store,
+            last_good_store=last_good_store,
+        )
 
     return _ingest
 
@@ -90,6 +101,7 @@ def real_ingest_provider(
     ctx: RunContext,
     *,
     history_store: TotalMcapHistoryStore | None = None,
+    last_good_store: LastGoodSnapshotStore | None = None,
 ) -> IngestBundle:
     client = CoinGeckoClient()
     cg_price = CoinGeckoPriceSource(client)
@@ -161,6 +173,7 @@ def real_ingest_provider(
                     max_deviation_pct=2.0,
                 )
                 if merged is not None:
+                    _record_last_good(last_good_store, merged)
                     indicator_snapshots[sym] = merged
                     price_snapshots[sym] = merged
                     _log.info(
@@ -171,6 +184,11 @@ def real_ingest_provider(
                         merged.deviation_flags,
                     )
                     continue
+            last_good = _load_last_good(last_good_store, sym)
+            if last_good is not None:
+                indicator_snapshots[sym] = last_good
+                price_snapshots[sym] = last_good
+                continue
             _log.warning(
                 "real_price_fallback_mock symbol=%s (no live crypto source)", sym
             )
@@ -181,6 +199,7 @@ def real_ingest_provider(
                 live = cg_price.fetch_series(sym, ctx)
                 merged = aggregate_snapshots([live], prefer_source_id="coingecko")
                 if merged is not None:
+                    _record_last_good(last_good_store, merged)
                     indicator_snapshots[sym] = merged
                     price_snapshots[sym] = merged
                     _log.info(
@@ -189,6 +208,11 @@ def real_ingest_provider(
                     continue
             except Exception as exc:
                 _log.warning("real_gold_fallback_mock err=%s", exc)
+            last_good = _load_last_good(last_good_store, sym)
+            if last_good is not None:
+                indicator_snapshots[sym] = last_good
+                price_snapshots[sym] = last_good
+                continue
 
         # --- WTI (Brent via TGJU) ---
         if sym == "WTI" and wti_src.supports(sym):
@@ -196,6 +220,7 @@ def real_ingest_provider(
                 live = wti_src.fetch_series(sym, ctx)
                 merged = aggregate_snapshots([live], prefer_source_id="tgju")
                 if merged is not None:
+                    _record_last_good(last_good_store, merged)
                     indicator_snapshots[sym] = merged
                     price_snapshots[sym] = merged
                     _log.info(
@@ -207,11 +232,17 @@ def real_ingest_provider(
                     continue
             except Exception as exc:
                 _log.warning("real_wti_fallback_mock err=%s", exc)
+            last_good = _load_last_good(last_good_store, sym)
+            if last_good is not None:
+                indicator_snapshots[sym] = last_good
+                price_snapshots[sym] = last_good
+                continue
 
         # --- USD_IRR ---
         if sym == "USD_IRR" and usd_src.supports(sym):
             try:
                 live = usd_src.fetch_series(sym, ctx)
+                _record_last_good(last_good_store, live)
                 indicator_snapshots[sym] = live
                 price_snapshots[sym] = live
                 _log.info(
@@ -224,12 +255,17 @@ def real_ingest_provider(
                 continue
             except Exception as exc:
                 _log.warning("real_usd_irr_unavailable err=%s", exc)
+                last_good = _load_last_good(last_good_store, sym)
+                if last_good is not None:
+                    indicator_snapshots[sym] = last_good
+                    price_snapshots[sym] = last_good
                 continue
 
         # --- TOTAL_MCAP ---
         if sym == "TOTAL_MCAP":
             if coinmarketcap_snapshots is not None:
                 live = coinmarketcap_snapshots.total_mcap
+                _record_last_good(last_good_store, live)
                 indicator_snapshots[sym] = live
                 price_snapshots[sym] = live
                 _log.info(
@@ -238,6 +274,10 @@ def real_ingest_provider(
                 )
             else:
                 _log.warning("real_total_mcap_unavailable source=coinmarketcap")
+                last_good = _load_last_good(last_good_store, sym)
+                if last_good is not None:
+                    indicator_snapshots[sym] = last_good
+                    price_snapshots[sym] = last_good
             continue
 
         # --- mock only if branches above did not continue ---
@@ -282,3 +322,36 @@ def real_ingest_provider(
         events=events,
         news_items=news_items,
     )
+
+
+def _record_last_good(
+    store: LastGoodSnapshotStore | None, snapshot: RawSnapshot
+) -> None:
+    if store is None:
+        return
+    try:
+        store.record(snapshot)
+    except Exception as exc:
+        _log.warning(
+            "last_good_store_failed symbol=%s source=%s err=%s",
+            snapshot.symbol,
+            snapshot.source_id,
+            exc,
+        )
+
+
+def _load_last_good(
+    store: LastGoodSnapshotStore | None, symbol: str
+) -> RawSnapshot | None:
+    if store is None:
+        return None
+    try:
+        snapshot = store.get(symbol)
+    except Exception as exc:
+        _log.warning("last_good_load_failed symbol=%s err=%s", symbol, exc)
+        return None
+    if snapshot is not None:
+        _log.warning(
+            "last_good_used symbol=%s source=%s", symbol, snapshot.source_id
+        )
+    return snapshot

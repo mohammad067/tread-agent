@@ -168,3 +168,16 @@ class TotalMcapSampleRow(Base):
     as_of: Mapped[str] = mapped_column(_TS, primary_key=True)
     value: Mapped[float] = mapped_column(Float)
     run_id: Mapped[str | None] = mapped_column(_ULID, nullable=True)
+
+
+class LastGoodSnapshotRow(Base):
+    """Latest successful real-ingest snapshot for one market symbol."""
+
+    __tablename__ = "last_good_snapshots"
+
+    symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
+    source_id: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict[str, object]] = mapped_column(PortableJSON)
+    as_of: Mapped[str] = mapped_column(_TS)
+    deviation_flags: Mapped[list[object]] = mapped_column(PortableJSON)
+    content_hash: Mapped[str] = mapped_column(String(64))

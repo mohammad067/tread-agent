@@ -67,17 +67,24 @@ All deterministic math outputs for one run. Byte-reproducible from `RawSnapshot`
 | `surprise_sigma` | number \| null | Standardized surprise if a historical stdev is available. |
 | `proximity_hours` | number | Time since/until the event. |
 
-## 3. `NewsDigest` (v1) — NewsWeigher → LLM Call #1
+## 3. `NewsDigest` (v3) — NewsWeigher → LLM Call #1
+
+`news_digest.v1.json` and `news_digest.v2.json` remain available as historical contracts.
+Runtime DTOs emit v3.
 
 | Field | Type | Req? | Notes |
 |-------|------|------|-------|
 | `run_id` | string | M | — |
-| `items` | array\<WeightedNewsItem\> | M (may be empty) | Ranked by `effective_weight`. |
+| `items` | array\<WeightedNewsItem\> | M (may be empty) | Ranked by `max_effective_weight`. |
 | `weighting_versions` | object | M | source-quality + half-life versions (pin for replay). |
 
-**`WeightedNewsItem`:** `news_id`, `title`, `source`, `published_at`, `source_quality` (0–1), `relevance`
-(0–1), `recency_decay` (0–1), `effective_weight` (0–1, = product). **The LLM consumes these; never assigns
-them** (F-6).
+**`WeightedNewsItem`:** `news_id`, `title`, `evidence_text` (deterministically normalized body,
+maximum 2,000 characters), `source`, `published_at`, `source_quality` (0–1),
+`recency_decay` (0–1), `asset_weights` (asset symbol → `AssetNewsWeight`) and
+`max_effective_weight` (0–1, ranking only).
+
+**`AssetNewsWeight`:** `relevance` (0–1) and `effective_weight` (0–1, = source quality × asset
+relevance × recency decay). **The LLM consumes these; never assigns them** (F-6).
 
 ## 4. `ReasoningRequest` (v1) — pipeline → MarketReasoner (both calls)
 

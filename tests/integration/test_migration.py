@@ -19,6 +19,7 @@ _EXPECTED_TABLES = {
     "news_items",
     "rule_activations",
     "total_mcap_samples",
+    "last_good_snapshots",
 }
 
 

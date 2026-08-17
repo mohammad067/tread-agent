@@ -5,15 +5,47 @@ from __future__ import annotations
 import pytest
 
 from market_state_engine.evaluation.replay_harness import ReplayHarness
+from market_state_engine.ingestion.real import news_feeds
+from market_state_engine.persistence.repositories import RunRepository
 
 from ._m6_harness import REPO, fixed_clock, stored_full_run
 
 
-def test_replay_reproduces_deterministic_core() -> None:
+def test_replay_with_news_restores_inputs_and_prompt_hashes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     run_id = "RPLYCORE0000000000000000AB"
     c = stored_full_run(run_id)
-    result = ReplayHarness(REPO, fixed_clock).run(c.database, run_id)
-    assert result.deterministic_match is True  # frozen guarantee: core reproduces byte-identically
+    harness = ReplayHarness(REPO, fixed_clock)
+
+    with c.database.session() as session:
+        stored_inputs = RunRepository(session).get_inputs(run_id)
+    assert stored_inputs is not None
+    persisted_news = stored_inputs.raw_snapshots["news_items"]
+    assert isinstance(persisted_news, list)
+    assert [item["news_id"] for item in persisted_news] == ["n1"]
+
+    loaded = harness.load(c.database, run_id)
+
+    assert [item.news_id for item in loaded.ingest.news_items] == ["n1"]
+    assert loaded.ingest.news_items[0].body == "Bitcoin falls after hot CPI"
+
+    sentiment_call = next(
+        record for record in loaded.call_records if record.llm_job.value == "sentiment"
+    )
+    assert '"evidence_text": "Bitcoin falls after hot CPI"' in sentiment_call.rendered_prompt
+
+    def fail_live_fetch(_url: str) -> bytes:
+        raise AssertionError("live RSS fetch attempted during replay")
+
+    monkeypatch.setattr(news_feeds, "_fetch", fail_live_fetch)
+    result = harness.replay(loaded)
+    assert result.deterministic_match is True
+    assert result.full_deterministic_match is True
+    # verify_replay includes prompt_hash among its replay-critical fields.
+    assert result.call_records_match is True
+    assert result.call_verification.compared == 2
+    assert result.call_verification.diffs == []
     assert result.ok is True
 
 

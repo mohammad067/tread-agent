@@ -38,9 +38,13 @@ _ROOT = Path(__file__).resolve().parents[3]
 
 def _build_real_ingest(database: Database) -> Callable[[RunContext], IngestBundle]:
     from market_state_engine.ingestion.real.provider import build_real_ingest_provider
+    from market_state_engine.persistence.last_good import SqlLastGoodSnapshotStore
     from market_state_engine.persistence.total_mcap_history import SqlTotalMcapHistoryStore
 
-    return build_real_ingest_provider(SqlTotalMcapHistoryStore(database))
+    return build_real_ingest_provider(
+        SqlTotalMcapHistoryStore(database),
+        SqlLastGoodSnapshotStore(database),
+    )
 
 
 def build_default_container() -> Container:

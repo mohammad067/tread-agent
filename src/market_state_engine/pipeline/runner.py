@@ -139,6 +139,10 @@ def _ingest_snapshot(ingest: IngestBundle) -> dict[str, object]:
             s: snap.model_dump(by_alias=True) for s, snap in ingest.global_snapshots.items()
         },
         "events": [e.model_dump(by_alias=True) for e in ingest.events],
+        # Preserve normalized news in its original deterministic order. Replay
+        # must rebuild the same NewsDigest and therefore the same prompt hash
+        # without fetching any live feed.
+        "news_items": [item.model_dump(by_alias=True) for item in ingest.news_items],
     }
 
 

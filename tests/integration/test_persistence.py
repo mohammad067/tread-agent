@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from market_state_engine.core.dtos import TotalMcapSample
+from market_state_engine.core.dtos import RawSnapshot, TotalMcapSample
 from market_state_engine.persistence.models import Base
 from market_state_engine.persistence.repositories import (
     CallRecordRepository,
     EventLogRepository,
+    LastGoodSnapshotRepository,
     NewsRepository,
     RuleActivationRepository,
     RunRepository,
@@ -35,6 +36,7 @@ def test_create_all_builds_every_table() -> None:
         "news_items",
         "rule_activations",
         "total_mcap_samples",
+        "last_good_snapshots",
     }
     assert expected <= set(Base.metadata.tables)
 
@@ -66,6 +68,39 @@ def test_total_mcap_samples_upsert_and_read_chronologically() -> None:
         ("2026-08-02T00:00:00Z", 110.0),
     ]
     assert samples[0].run_id == "run-2"
+
+
+def test_last_good_snapshot_upsert_and_stale_read() -> None:
+    db = _memory_db()
+    live = RawSnapshot(
+        source_id="coingecko",
+        symbol="BTC",
+        payload={"value": 100.0, "currency": "USD"},
+        as_of="2026-08-01T00:00:00Z",
+        is_stale=False,
+        stale_reason=None,
+        deviation_flags=[],
+        content_hash="abc123",
+    )
+    newer = live.model_copy(
+        update={
+            "payload": {"value": 101.0, "currency": "USD"},
+            "as_of": "2026-08-01T01:00:00Z",
+            "content_hash": "def456",
+        }
+    )
+    with db.session() as session:
+        repository = LastGoodSnapshotRepository(session)
+        repository.upsert(live)
+        repository.upsert(newer)
+        restored = repository.get("BTC")
+
+    assert restored is not None
+    assert restored.payload["value"] == 101.0
+    assert restored.as_of == "2026-08-01T01:00:00Z"
+    assert restored.is_stale is True
+    assert restored.stale_reason == "last_good"
+    assert restored.content_hash == "def456"
 
 
 def test_marketstaterun_persisted_and_read_back() -> None:

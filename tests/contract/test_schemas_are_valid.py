@@ -23,6 +23,8 @@ EXPECTED_INTERNAL_SCHEMAS = {
     "raw_snapshot.v1.json",
     "feature_set.v1.json",
     "news_digest.v1.json",
+    "news_digest.v2.json",
+    "news_digest.v3.json",
     "reasoning_request.v1.json",
     "reasoning_response.v1.json",
     "state_vector.v1.json",

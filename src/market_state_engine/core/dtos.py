@@ -79,16 +79,22 @@ class FeatureSet(_Dto):
         return prune_none(raw, _FEATURE_SET_KEEP_NULL)  # type: ignore[return-value]
 
 
-# --- NewsDigest (news_digest.v1.json) --------------------------------------------------
+# --- NewsDigest (news_digest.v3.json) --------------------------------------------------
+class AssetNewsWeight(_Dto):
+    relevance: float = Field(ge=0.0, le=1.0)
+    effective_weight: float = Field(ge=0.0, le=1.0)
+
+
 class WeightedNewsItem(_Dto):
     news_id: str
     title: str
+    evidence_text: str = Field(max_length=2000)
     source: str
     published_at: str
     source_quality: float = Field(ge=0.0, le=1.0)
-    relevance: float = Field(ge=0.0, le=1.0)
     recency_decay: float = Field(ge=0.0, le=1.0)
-    effective_weight: float = Field(ge=0.0, le=1.0)
+    asset_weights: dict[str, AssetNewsWeight]
+    max_effective_weight: float = Field(ge=0.0, le=1.0)
 
 
 class NewsDigest(_Dto):

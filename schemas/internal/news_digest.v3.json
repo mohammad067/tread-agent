@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://market-state-engine/schemas/internal/news_digest.v3.json",
+  "title": "NewsDigest",
+  "description": "Internal DTO v3. Per-asset weighted news with bounded textual evidence for sentiment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run_id", "items", "weighting_versions"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "items": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/WeightedNewsItem" }
+    },
+    "weighting_versions": { "type": "object" }
+  },
+  "$defs": {
+    "AssetNewsWeight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relevance", "effective_weight"],
+      "properties": {
+        "relevance": { "type": "number", "minimum": 0, "maximum": 1 },
+        "effective_weight": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "WeightedNewsItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "news_id",
+        "title",
+        "evidence_text",
+        "source",
+        "published_at",
+        "source_quality",
+        "recency_decay",
+        "asset_weights",
+        "max_effective_weight"
+      ],
+      "properties": {
+        "news_id": { "type": "string" },
+        "title": { "type": "string" },
+        "evidence_text": { "type": "string", "maxLength": 2000 },
+        "source": { "type": "string" },
+        "published_at": { "type": "string", "format": "date-time" },
+        "source_quality": { "type": "number", "minimum": 0, "maximum": 1 },
+        "recency_decay": { "type": "number", "minimum": 0, "maximum": 1 },
+        "asset_weights": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/AssetNewsWeight" }
+        },
+        "max_effective_weight": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

@@ -21,7 +21,7 @@ from datetime import datetime
 from pathlib import Path
 
 from market_state_engine.app.container import build_container
-from market_state_engine.core.dtos import MacroEvent, RawSnapshot
+from market_state_engine.core.dtos import MacroEvent, NewsItem, RawSnapshot
 from market_state_engine.core.enums import RegimeState
 from market_state_engine.core.hashing import content_hash
 from market_state_engine.persistence.repositories import CallRecordRepository, RunRepository
@@ -40,9 +40,7 @@ class ReplayResult:
     # byte-identically. This is the load-bearing property and what ``deterministic_match`` tracks.
     deterministic_match: bool
     # Whether the FULL deterministic fingerprint (incl. MHI, which legitimately folds in sentiment)
-    # also matched. This holds only when the LLM leg reproduced too — i.e. when every prompt input
-    # was persisted in run_inputs. News items are not persisted in M5, so a run whose sentiment used
-    # news will not reproduce the sentiment leg; its core still matches. Informational only.
+    # also matched. This holds when the LLM leg and every persisted prompt input reproduce.
     full_deterministic_match: bool
     call_records_match: bool
     stored_core_fingerprint: str
@@ -208,8 +206,9 @@ def _rebuild_ingest(raw: dict[str, object]) -> IngestBundle:
         price_snapshots=_snapshots(raw.get("price_snapshots")),
         global_snapshots=_snapshots(raw.get("global_snapshots")),
         events=[MacroEvent.model_validate(e) for e in _as_list(raw.get("events"))],
-        # news is not persisted in run_inputs (M5); deterministic output is unaffected
-        news_items=[],
+        # Preserve stored order exactly: NewsWeigher ranking and prompt hashing
+        # must see the same normalized inputs. Missing means a pre-migration run.
+        news_items=[NewsItem.model_validate(item) for item in _as_list(raw.get("news_items"))],
     )
 
 

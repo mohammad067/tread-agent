@@ -24,7 +24,7 @@ from .types import RenderedPrompt
 
 # Default active template version per job (bumping this is a reviewed, hash-changing event).
 _DEFAULT_VERSIONS: dict[LlmJob, str] = {
-    LlmJob.SENTIMENT: "v1",
+    LlmJob.SENTIMENT: "v3",
     LlmJob.SYNTHESIS: "v1",
 }
 

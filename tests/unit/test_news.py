@@ -8,52 +8,9 @@ import pytest
 
 from market_state_engine.config.models import HalfLives, SourceQuality
 from market_state_engine.core.dtos import NewsItem
-from market_state_engine.news.relevance import compute_relevance
 from market_state_engine.news.weigher import NewsWeigher
 
 TARGETS = {"BTC", "ETH", "GOLD", "WTI", "USD_IRR", "TOTAL_MCAP"}
-
-
-def test_relevance_uses_trusted_upstream_score() -> None:
-    item = NewsItem(
-        news_id="n1",
-        title="unrelated",
-        source="wire_reuters",
-        published_at="2026-07-14T12:00:00Z",
-        relevance=0.87,
-    )
-    assert compute_relevance(item, TARGETS) == pytest.approx(0.87)
-
-
-def test_relevance_from_asset_tags() -> None:
-    item = NewsItem(
-        news_id="n2",
-        title="market note",
-        source="wire_reuters",
-        published_at="2026-07-14T12:00:00Z",
-        asset_tags=["BTC"],
-    )
-    assert compute_relevance(item, TARGETS) == 1.0
-
-
-def test_relevance_from_keyword() -> None:
-    item = NewsItem(
-        news_id="n3",
-        title="Bitcoin slips after data",
-        source="crypto_media",
-        published_at="2026-07-14T12:00:00Z",
-    )
-    assert compute_relevance(item, TARGETS) == 0.5
-
-
-def test_relevance_no_match_is_zero() -> None:
-    item = NewsItem(
-        news_id="n4",
-        title="weather forecast",
-        source="crypto_media",
-        published_at="2026-07-14T12:00:00Z",
-    )
-    assert compute_relevance(item, TARGETS) == 0.0
 
 
 def _weigher() -> NewsWeigher:
@@ -77,11 +34,17 @@ def test_effective_weight_is_product() -> None:
     )
     digest = _weigher().weigh("run1", [item], TARGETS, now, default_event_type="us_cpi")
     w = digest.items[0]
+    btc = w.asset_weights["BTC"]
     # quality 0.95 x relevance 1.0 x decay(24h, hl 24h)=0.5 = 0.475
-    assert w.effective_weight == pytest.approx(
-        w.source_quality * w.relevance * w.recency_decay, abs=1e-9
-    )
+    assert btc.effective_weight == w.source_quality * btc.relevance * w.recency_decay
     assert w.recency_decay == pytest.approx(0.5, abs=1e-6)
+    assert w.max_effective_weight == max(
+        weight.effective_weight for weight in w.asset_weights.values()
+    )
+    for weight in w.asset_weights.values():
+        assert weight.effective_weight == (
+            w.source_quality * weight.relevance * w.recency_decay
+        )
 
 
 def test_digest_ranked_by_effective_weight() -> None:
@@ -103,7 +66,25 @@ def test_digest_ranked_by_effective_weight() -> None:
     ]
     digest = _weigher().weigh("run1", items, TARGETS, now)
     assert digest.items[0].news_id == "high"
-    assert digest.items[0].effective_weight >= digest.items[1].effective_weight
+    assert len(digest.items) == 1  # unrelated zero-relevance news is omitted
+
+
+def test_equal_weights_use_news_id_as_deterministic_tie_break() -> None:
+    now = datetime(2026, 7, 14, 13, 0, tzinfo=timezone.utc)
+    items = [
+        NewsItem(
+            news_id=news_id,
+            title="Bitcoin update",
+            source="wire_reuters",
+            published_at="2026-07-14T12:00:00Z",
+            asset_tags=["BTC"],
+        )
+        for news_id in ("z-news", "a-news")
+    ]
+
+    digest = _weigher().weigh("run1", items, TARGETS, now)
+
+    assert [item.news_id for item in digest.items] == ["a-news", "z-news"]
 
 
 def test_digest_validates_against_schema(make_validator: object) -> None:
@@ -116,6 +97,29 @@ def test_digest_validates_against_schema(make_validator: object) -> None:
         asset_tags=["BTC"],
     )
     digest = _weigher().weigh("run1", [item], TARGETS, now)
-    validator = make_validator("news_digest.v1.json")  # type: ignore[operator]
-    errors = list(validator.iter_errors(digest.to_contract_dict()))
+    serialized = digest.to_contract_dict()
+    validator = make_validator("news_digest.v3.json")  # type: ignore[operator]
+    errors = list(validator.iter_errors(serialized))
     assert not errors
+    serialized_item = serialized["items"][0]  # type: ignore[index]
+    assert "asset_weights" in serialized_item
+    assert "evidence_text" in serialized_item
+    assert "max_effective_weight" in serialized_item
+    assert "relevance" not in serialized_item
+    assert "effective_weight" not in serialized_item
+
+
+def test_body_only_relevance_is_preserved_as_prompt_evidence() -> None:
+    now = datetime(2026, 7, 14, 13, 0, tzinfo=timezone.utc)
+    item = NewsItem(
+        news_id="body-only",
+        title="Market update",
+        body="<p>Oil prices rise on supply concerns</p>",
+        source="wire_reuters",
+        published_at="2026-07-14T12:00:00Z",
+    )
+
+    digest = _weigher().weigh("run1", [item], TARGETS, now)
+
+    assert digest.items[0].asset_weights["WTI"].relevance > 0
+    assert digest.items[0].evidence_text == "Oil prices rise on supply concerns"

@@ -158,7 +158,7 @@ def test_successful_sentiment_returns_response_and_records() -> None:
     assert rec.outcome == "success"
     assert rec.provider == "fake"
     assert rec.model_id == "fake-1"
-    assert rec.prompt_version == "sentiment/v1"
+    assert rec.prompt_version == "sentiment/v3"
     assert rec.latency_ms == 842
     assert rec.response_hash is not None
 

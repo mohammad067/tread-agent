@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -57,7 +58,7 @@ def _synthesis_request() -> ReasoningRequest:
 
 def test_version_string_matches_job_and_template() -> None:
     pb = PromptBuilder(PROMPTS)
-    assert pb.version_for(LlmJob.SENTIMENT) == "sentiment/v1"
+    assert pb.version_for(LlmJob.SENTIMENT) == "sentiment/v3"
     assert pb.version_for(LlmJob.SYNTHESIS) == "synthesis/v1"
 
 
@@ -66,7 +67,7 @@ def test_sentiment_render_substitutes_placeholders() -> None:
     rp = pb.build(_sentiment_request())
     assert "{{" not in rp.text  # every placeholder resolved
     assert "BTC, ETH" in rp.text
-    assert rp.version == "sentiment/v1"
+    assert rp.version == "sentiment/v3"
     assert len(rp.prompt_hash) == 64  # sha-256 hex
 
 
@@ -94,6 +95,28 @@ def test_hash_is_neutral_across_vendors() -> None:
     h1 = pb1.build(_sentiment_request()).prompt_hash
     h2 = pb2.build(_sentiment_request()).prompt_hash
     assert h1 == h2
+
+
+def test_sentiment_v3_renders_deterministic_weights_and_evidence() -> None:
+    golden = json.loads(
+        (REPO / "tests" / "golden" / "reasoning_request.sentiment.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    request = ReasoningRequest.model_validate(golden)
+
+    rendered = PromptBuilder(PROMPTS).build(request)
+
+    assert rendered.version == "sentiment/v3"
+    assert '"asset_weights"' in rendered.text
+    assert '"evidence_text": "Core CPI exceeded consensus' in rendered.text
+    assert '"BTC"' in rendered.text
+    assert '"relevance": 0.75' in rendered.text
+    assert '"effective_weight": 0.69825' in rendered.text
+    assert '"max_effective_weight": 0.8379' in rendered.text
+    assert "وزن جدید نسازید" in rendered.text
+    assert "فقط برای ترتیب کلی خبرها" in rendered.text
+    assert "ارتباط جدید حدس نزنید" in rendered.text
 
 
 def test_different_payload_changes_hash() -> None:
