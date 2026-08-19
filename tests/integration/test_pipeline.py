@@ -4,9 +4,43 @@ from __future__ import annotations
 
 import pytest
 
+from market_state_engine.app.container import build_container
+from market_state_engine.core.dtos import NewsItem
+from market_state_engine.core.enums import RegimeState
+from market_state_engine.persistence.repositories import CallRecordRepository, RunRepository
+from market_state_engine.pipeline.orchestrator import IngestBundle
 from market_state_engine.pipeline.scheduler import ExecutionMode, OverlapError
 
-from ._harness import SYMBOLS, build_degraded_container, build_full_container
+from ._harness import (
+    REPO,
+    SYMBOLS,
+    SequencedFake,
+    build_degraded_container,
+    build_full_container,
+    fixed_clock,
+    ingest_provider,
+)
+
+
+def _container_with_news(news_items: list[NewsItem]):  # type: ignore[no-untyped-def]
+    def provider(ctx: object) -> IngestBundle:
+        base = ingest_provider(ctx)
+        return IngestBundle(
+            indicator_snapshots=base.indicator_snapshots,
+            price_snapshots=base.price_snapshots,
+            global_snapshots=base.global_snapshots,
+            events=base.events,
+            news_items=news_items,
+        )
+
+    return build_container(
+        REPO,
+        env="dev",
+        ingest_provider=provider,
+        overrides={"anthropic": SequencedFake("anthropic")},
+        clock=fixed_clock,
+        previous_state_provider=lambda: RegimeState.TRANSITION,
+    )
 
 
 def test_full_pipeline_produces_non_degraded_run() -> None:
@@ -40,6 +74,49 @@ def test_degraded_pipeline_still_succeeds_when_all_providers_fail() -> None:
         assert asset["scores"]["sentiment"] is None  # honest absence
         assert "human_summary_fa" not in asset
     assert "degraded_run" in {f["code"] for f in run["guardrail_flags"]}
+
+
+def test_empty_digest_skips_sentiment_but_synthesis_remains_healthy() -> None:
+    c = _container_with_news([])
+    summary = c.scheduler.run_manual()
+    with c.database.session() as session:
+        run = RunRepository(session).get(summary.run_id)
+        calls = CallRecordRepository(session).list_for_run(summary.run_id)
+
+    assert run is not None
+    assert summary.is_degraded is False
+    assert [call["llm_job"] for call in calls] == ["synthesis"]
+    assert "degraded_run" not in {flag["code"] for flag in run["guardrail_flags"]}
+    assert all(asset["scores"]["sentiment"] is None for asset in run["assets"])
+    assert all("human_summary_fa" in asset for asset in run["assets"])
+
+
+def test_sentiment_is_limited_to_assets_with_digest_evidence() -> None:
+    news = [
+        NewsItem(
+            news_id="btc-only",
+            title="Bitcoin market update",
+            source="wire_reuters",
+            published_at="2026-07-14T12:35:00Z",
+            asset_tags=["BTC"],
+        )
+    ]
+    c = _container_with_news(news)
+    summary = c.scheduler.run_manual()
+    with c.database.session() as session:
+        run = RunRepository(session).get(summary.run_id)
+        calls = CallRecordRepository(session).list_for_run(summary.run_id)
+
+    assert run is not None
+    sentiments = {
+        asset["symbol"]: asset["scores"]["sentiment"] for asset in run["assets"]
+    }
+    assert sentiments["BTC"] == -0.2
+    assert all(sentiments[symbol] is None for symbol in SYMBOLS if symbol != "BTC")
+    sentiment_call = next(call for call in calls if call["llm_job"] == "sentiment")
+    synthesis_call = next(call for call in calls if call["llm_job"] == "synthesis")
+    assert "دارایی‌های هدف: BTC" in sentiment_call["rendered_prompt"]
+    assert '"per_asset_sentiment": {\n    "BTC": -0.2' in synthesis_call["rendered_prompt"]
 
 
 def test_deterministic_fields_identical_across_full_and_degraded() -> None:

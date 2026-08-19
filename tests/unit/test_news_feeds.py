@@ -28,6 +28,18 @@ def _xml(title: str, *, link: str = "https://example.test/article") -> bytes:
     ).encode()
 
 
+def _xml_many(titles: list[str]) -> bytes:
+    entries = "".join(
+        "<item>"
+        f"<title>{title}</title>"
+        f"<link>https://example.test/{index}</link>"
+        "<description>Article body</description>"
+        "</item>"
+        for index, title in enumerate(titles)
+    )
+    return f"<rss><channel>{entries}</channel></rss>".encode()
+
+
 def _ctx() -> RunContext:
     return RunContext(
         run_id="run-news",
@@ -56,6 +68,22 @@ def test_general_feed_keeps_untagged_macro_and_asset_text() -> None:
 
     assert macro[0].asset_tags == []
     assert bitcoin[0].asset_tags == []
+
+
+def test_default_source_does_not_drop_untagged_candidates_before_relevance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    titles = [f"General company update {index}" for index in range(41)]
+    titles.append("Oil prices rise on supply concerns")
+    monkeypatch.setattr(news_feeds, "_fetch", lambda _url: _xml_many(titles))
+    source = RssNewsSource(feeds=[("https://feed.test", "coindesk", [])])
+
+    items = source.fetch_items(_ctx())
+
+    assert len(items) == 42
+    oil_item = next(item for item in items if item.title.startswith("Oil prices"))
+    assert oil_item.asset_tags == []
+    assert compute_relevance_map(oil_item, {"WTI"})["WTI"] > 0.0
 
 
 def test_specialized_feed_applies_only_its_trusted_default() -> None:

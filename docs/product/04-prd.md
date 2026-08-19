@@ -96,9 +96,9 @@ Serves P3's reproducibility and P4's trust.
 
 ## F-4 — Two separate LLM calls via a provider-agnostic Gateway (§2.4)
 
-**What:** Two structured calls to the **configured External LLM Provider**, routed through the **LLM Gateway**
-(the project owns **no** model — decision D4). **Call #1 (Sentiment):** news sentiment scoring from the
-weighted News Digest → per-asset + global Sentiment Scores. **Call #2 (Synthesis):** human summaries, ordinal
+**What:** Two separate structured LLM jobs routed through the **LLM Gateway** (the project owns **no** model —
+decision D4). **Call #1 (Sentiment):** conditionally scores only assets represented by a non-empty, fresh,
+relevant weighted News Digest. **Call #2 (Synthesis):** human summaries, ordinal
 Drivers, Novelty Flags, Data-Gap declarations. **Never merged** — separation prevents the sentiment score from
 bending toward a nicer narrative.
 
@@ -126,7 +126,9 @@ bending toward a nicer narrative.
 - Summary language: **Persian only** (`human_summary_fa`) — **resolved, ADR-014**. No EN field in v1.0.0.
 
 **Acceptance criteria:**
-- Two distinct calls per Run; sentiment output never depends on synthesis output.
+- Two distinct jobs; Call #1 is skipped without eligible evidence, while Call #2 still runs from State Vector.
+- No eligible news leaves affected assets at `sentiment=null` without marking the Run degraded or fabricating
+  a Call Record/neutral score.
 - All LLM calls flow through the Gateway; no core module imports a vendor SDK directly.
 - Switching the configured provider/model is a config change only (no code diff).
 - Structured-output enforcement on both calls (schema-validated).
@@ -167,7 +169,9 @@ P1/P3's explainability.
 
 ## F-6 — News weighting in code (§2.6)
 
-**What:** `effective_weight = source_quality × relevance × recency_decay`, with per-event-type half-lives.
+**What:** Eligible News Items satisfy deterministic relevance and freshness before
+`effective_weight = source_quality × relevance × recency_decay` is computed. Freshness uses configured
+`max_news_age_hours` (initially 36); weighting retains per-event-type half-lives.
 The External LLM Provider **consumes** weights; it never assigns them.
 
 **Rationale:** §7 "honest weights"; keeps sentiment inputs auditable. Serves P3, P4.
@@ -177,7 +181,12 @@ The External LLM Provider **consumes** weights; it never assigns them.
 **Acceptance criteria:**
 - Effective weight computed deterministically per the formula; reproducible on replay.
 - Half-lives are per-event-type config (`config/decay/`), versioned.
+- Freshness is evaluated against injected Run time before coverage/global limiting; future, invalid, and
+  over-age News Items are excluded in live and replay.
 - The News Digest handed to Call #1 carries weights the External LLM Provider did not compute.
+
+**Boundary:** News freshness is not event persistence. Persistent geopolitical/supply-crisis state is deferred
+and must not be approximated by retaining stale News Items. MacroEvent/Rule lifetimes remain independent.
 
 **Out of scope:** learned source reliability (Phase 3), entity extraction, news collection.
 

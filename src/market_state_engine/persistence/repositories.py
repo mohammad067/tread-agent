@@ -105,7 +105,16 @@ class RunRepository:
         return self._s.get(RunInputRow, run_id)
 
     def latest(self) -> dict[str, object] | None:
-        stmt = select(RunRow.run_id).order_by(RunRow.run_sequence.desc()).limit(1)
+        stmt = (
+            select(RunOutputRow.run_id)
+            .join(RunRow, RunRow.run_id == RunOutputRow.run_id)
+            .order_by(
+                RunOutputRow.persisted_at.desc(),
+                RunRow.run_sequence.desc(),
+                RunOutputRow.run_id.desc(),
+            )
+            .limit(1)
+        )
         run_id = self._s.execute(stmt).scalar_one_or_none()
         return self.get(run_id) if run_id is not None else None
 
@@ -116,7 +125,15 @@ class RunRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict[str, object]]:
-        stmt = select(RunRow.run_id).order_by(RunRow.run_sequence.desc())
+        stmt = (
+            select(RunOutputRow.run_id)
+            .join(RunRow, RunRow.run_id == RunOutputRow.run_id)
+            .order_by(
+                RunOutputRow.persisted_at.desc(),
+                RunRow.run_sequence.desc(),
+                RunOutputRow.run_id.desc(),
+            )
+        )
         if trigger_type is not None:
             stmt = stmt.where(RunRow.trigger_type == trigger_type)
         stmt = stmt.offset(offset).limit(limit)

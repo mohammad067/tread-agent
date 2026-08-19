@@ -48,7 +48,8 @@ def test_bundle_versions_captured() -> None:
     bundle = load_config_bundle(CONFIG_DIR)
     assert bundle.versions["mhi_weights"] == "1.1.0"
     assert bundle.versions["source_quality"]
-    assert bundle.versions["half_lives"]
+    assert bundle.versions["half_lives"] == "1.1.0"
+    assert bundle.half_lives.max_news_age_hours == 36.0
 
 
 def test_env_configs_load() -> None:

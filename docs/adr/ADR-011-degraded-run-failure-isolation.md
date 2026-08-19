@@ -70,6 +70,12 @@ If Call #1 (sentiment) succeeds but Call #2 (synthesis) fails after failover (or
 degraded **only** for the failed call's fields; the succeeded call's fields are kept. Degradation is
 per-LLM-job, not all-or-nothing, so we never discard a good sentiment score because synthesis timed out.
 
+### DR-6 — No-input is not provider failure (clarification 2026-08-18)
+If deterministic news eligibility produces no fresh relevant evidence, Call #1 is not attempted. This is a
+normal no-input outcome, not provider exhaustion: no retry/failover, synthetic Call Record, degradation flag,
+or fabricated neutral sentiment is produced. Call #2 may still succeed from the deterministic State Vector.
+If eligible news exists and Call #1 exhausts providers, DR-1 through DR-5 apply unchanged.
+
 ## Alternatives Considered
 
 1. **Fail the whole run on LLM failure.** Simplest. **Rejected:** makes availability hostage to an external

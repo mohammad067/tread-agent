@@ -21,28 +21,32 @@ class Finding:
 
 
 def check_degraded_honesty(run: MarketStateRun) -> list[Finding]:
-    """A degraded run must not carry LLM-produced fields; a non-degraded run must (ADR-011)."""
+    """Failed LLM jobs must not carry their own output fields (ADR-011 DR-5)."""
     findings: list[Finding] = []
+    codes = {flag.code for flag in run.guardrail_flags}
+    scoped = bool({"sentiment_degraded", "synthesis_degraded"} & codes)
+    sentiment_failed = "sentiment_degraded" in codes or (run.is_degraded and not scoped)
+    synthesis_failed = "synthesis_degraded" in codes or (run.is_degraded and not scoped)
+
     for i, asset in enumerate(run.assets):
-        if run.is_degraded:
-            if asset.scores.sentiment is not None:
-                findings.append(
-                    Finding(
-                        "degraded_sentiment_present",
-                        Severity.CRITICAL,
-                        f"{asset.symbol}: sentiment present on a degraded run",
-                        f"assets[{i}].scores.sentiment",
-                    )
+        if sentiment_failed and asset.scores.sentiment is not None:
+            findings.append(
+                Finding(
+                    "degraded_sentiment_present",
+                    Severity.CRITICAL,
+                    f"{asset.symbol}: sentiment present after sentiment job failure",
+                    f"assets[{i}].scores.sentiment",
                 )
-            if asset.human_summary_fa is not None:
-                findings.append(
-                    Finding(
-                        "degraded_summary_present",
-                        Severity.CRITICAL,
-                        f"{asset.symbol}: human_summary_fa present on a degraded run",
-                        f"assets[{i}].human_summary_fa",
-                    )
+            )
+        if synthesis_failed and asset.human_summary_fa is not None:
+            findings.append(
+                Finding(
+                    "degraded_summary_present",
+                    Severity.CRITICAL,
+                    f"{asset.symbol}: summary present after synthesis job failure",
+                    f"assets[{i}].human_summary_fa",
                 )
+            )
     return findings
 
 

@@ -16,9 +16,10 @@ TARGETS = {"BTC", "ETH", "GOLD", "WTI", "USD_IRR", "TOTAL_MCAP"}
 def _weigher() -> NewsWeigher:
     sq = SourceQuality(version="1.0.0", sources={"wire_reuters": 0.95}, default_quality=0.5)
     hl = HalfLives(
-        version="1.0.0",
+        version="1.1.0",
         news_half_life_hours={"us_cpi": 24.0, "default": 12.0},
         rule_half_life_defaults={"default": 12.0},
+        max_news_age_hours=36.0,
     )
     return NewsWeigher(sq, hl)
 
@@ -123,3 +124,94 @@ def test_body_only_relevance_is_preserved_as_prompt_evidence() -> None:
 
     assert digest.items[0].asset_weights["WTI"].relevance > 0
     assert digest.items[0].evidence_text == "Oil prices rise on supply concerns"
+
+
+def test_global_cap_preserves_available_gold_and_wti_coverage() -> None:
+    now = datetime(2026, 7, 14, 13, 0, tzinfo=timezone.utc)
+    items = [
+        NewsItem(
+            news_id=f"btc-{index:02d}",
+            title=f"Bitcoin update {index}",
+            source="wire_reuters",
+            published_at="2026-07-14T12:59:00Z",
+            asset_tags=["BTC"],
+        )
+        for index in range(40)
+    ]
+    items.extend(
+        [
+            NewsItem(
+                news_id="gold-coverage",
+                title="Gold market update",
+                source="wire_reuters",
+                published_at="2026-07-13T13:00:00Z",
+                asset_tags=["GOLD"],
+            ),
+            NewsItem(
+                news_id="wti-coverage",
+                title="Saudi Aramco increases crude exports",
+                source="wire_reuters",
+                published_at="2026-07-13T13:00:00Z",
+            ),
+        ]
+    )
+
+    first = _weigher().weigh("run1", items, TARGETS, now)
+    second = _weigher().weigh("run1", list(reversed(items)), TARGETS, now)
+    first_ids = [item.news_id for item in first.items]
+
+    assert len(first.items) == 40
+    assert "gold-coverage" in first_ids
+    assert "wti-coverage" in first_ids
+    assert first_ids == [item.news_id for item in second.items]
+
+
+@pytest.mark.parametrize(
+    ("published_at", "eligible"),
+    [
+        ("2026-07-14T01:00:00Z", True),  # 12 hours old
+        ("2026-07-13T00:00:00Z", False),  # 37 hours old
+        ("2026-07-14T13:00:01Z", False),  # future timestamp
+        ("not-a-timestamp", False),
+    ],
+)
+def test_news_freshness_eligibility(published_at: str, eligible: bool) -> None:
+    now = datetime(2026, 7, 14, 13, 0, tzinfo=timezone.utc)
+    item = NewsItem(
+        news_id="freshness",
+        title="Bitcoin market update",
+        source="wire_reuters",
+        published_at=published_at,
+        asset_tags=["BTC"],
+    )
+
+    digest = _weigher().weigh("run1", [item], TARGETS, now)
+
+    assert bool(digest.items) is eligible
+
+
+def test_stale_gold_news_is_not_restored_for_coverage() -> None:
+    now = datetime(2026, 7, 14, 13, 0, tzinfo=timezone.utc)
+    items = [
+        NewsItem(
+            news_id=f"btc-fresh-{index:02d}",
+            title=f"Bitcoin update {index}",
+            source="wire_reuters",
+            published_at="2026-07-14T12:59:00Z",
+            asset_tags=["BTC"],
+        )
+        for index in range(40)
+    ]
+    items.append(
+        NewsItem(
+            news_id="gold-stale",
+            title="Gold market update",
+            source="wire_reuters",
+            published_at="2026-07-12T13:00:00Z",
+            asset_tags=["GOLD"],
+        )
+    )
+
+    digest = _weigher().weigh("run1", items, TARGETS, now)
+
+    assert "gold-stale" not in {item.news_id for item in digest.items}

@@ -37,7 +37,7 @@
 |------|------------|---------------|------------|
 | **Trend Score** | Deterministic scalar in `[-1, 1]` computed in code from indicators (RSI, MACD state, EMA relation, multi-horizon changes). Positive = uptrend. Never LLM-set. | امتیاز روند | Schema (`scores.trend`), Scoring |
 | **Risk Score** | Deterministic scalar in `[0, 1]` computed in code from volatility (ATR%), event proximity, and volume anomalies. Higher = more risk. Never LLM-set. | امتیاز ریسک | Schema (`scores.risk`), Scoring |
-| **Sentiment Score** | Scalar in `[-1, 1]` produced by **LLM Call #1** (the configured External LLM Provider) from the weighted News Digest. The only score the provider sets. | امتیاز احساسات | Schema (`scores.sentiment`), LLM Call #1 |
+| **Sentiment Score** | Scalar in `[-1, 1]` produced by conditional **LLM Call #1** from eligible weighted news for that asset. `null` when no fresh relevant evidence exists; never replaced by fabricated neutral zero. | امتیاز احساسات | Schema (`scores.sentiment`), LLM Call #1 |
 | **Confidence** (System Confidence) | A scalar in `[0, 1]` expressing the **system's** confidence in a score or classification. **Deterministically derived** (e.g., signal concordance, data completeness, self-consistency divergence). **Never a probability** and never labeled as one. | اطمینان سیستم | Schema (`confidence`), UX |
 | **Indicator** | A deterministic technical measure computed from price/volume: `rsi_14`, `macd_state`, `ema_20_50`, `atr_pct`, `volume_ratio_20d`. | اندیکاتور | Schema (`indicators`), Features |
 
@@ -74,6 +74,7 @@
 | **Effective Weight** | The deterministic news weight: `source_quality × relevance × recency_decay`. Computed **in code**; the External LLM Provider consumes it and never assigns it. | وزن مؤثر | Schema/DTO, NewsWeigher |
 | **Source Quality** | A configured trust score per news source (`config/sources/source_quality`). | کیفیت منبع | Config |
 | **News Digest** | The weighted, ranked bundle of News Items handed to LLM Call #1. | چکیده اخبار | DTO (`NewsDigest`) |
+| **News Freshness** | Eligibility of an ordinary News Item under configured `max_news_age_hours`, evaluated against Run time before digest selection. It does not define event persistence. | تازگی خبر | Config, NewsWeigher |
 
 ## External LLM provider abstraction
 

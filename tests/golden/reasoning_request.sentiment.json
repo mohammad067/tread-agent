@@ -27,7 +27,7 @@
       ],
       "weighting_versions": {
         "source_quality": "1.0.0",
-        "half_lives": "1.0.0",
+        "half_lives": "1.1.0",
         "relevance_model": "per_asset_v3"
       }
     }

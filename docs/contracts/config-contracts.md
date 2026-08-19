@@ -60,6 +60,7 @@ code change** (F-8, ADR-007). Every file is SemVer-versioned; a snapshot (secret
 | `version` | SemVer | — |
 | `news_half_life_hours` | map\<event_type/category, number\> | Per-event-type recency decay for news. |
 | `rule_half_life_defaults` | map\<event_type, number\> | Default rule half-lives (a rule may override). |
+| `max_news_age_hours` | number > 0 | Hard eligibility window for ordinary News Items; initial value 36. Independent of event persistence. |
 
 ## 5. `config/models/providers.yaml` — provider config (frozen ADR-007 §3)
 

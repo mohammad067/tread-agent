@@ -23,7 +23,7 @@ from market_state_engine.ingestion.mocks.mock_sources import (
 )
 from market_state_engine.pipeline.orchestrator import IngestBundle
 from market_state_engine.reasoning.adapters.fake import FakeProvider
-from market_state_engine.reasoning.types import RawProviderResult
+from market_state_engine.reasoning.types import RawProviderResult, RenderedPrompt
 
 REPO = Path(__file__).resolve().parents[2]
 SYMBOLS = ["BTC", "ETH", "GOLD", "WTI", "USD_IRR", "TOTAL_MCAP"]
@@ -104,11 +104,7 @@ def synthesis_text() -> str:
 
 
 class SequencedFake:
-    """A provider double that returns sentiment then synthesis text across successive calls.
-
-    Re-seeds every two calls so the same instance can serve multiple runs (sentiment, synthesis,
-    sentiment, synthesis, …).
-    """
+    """A provider double that returns the response matching the prompt's recorded job version."""
 
     def __init__(self, name: str = "anthropic") -> None:
         self._name = name
@@ -119,7 +115,9 @@ class SequencedFake:
         return self._name
 
     def complete(self, prompt: object, params: object) -> RawProviderResult:
-        text = sentiment_text() if self._i % 2 == 0 else synthesis_text()
+        if not isinstance(prompt, RenderedPrompt):
+            raise TypeError("expected RenderedPrompt")
+        text = sentiment_text() if prompt.version.startswith("sentiment/") else synthesis_text()
         self._i += 1
         return RawProviderResult(
             text=text, input_tokens=600, output_tokens=70, finish_reason="stop"

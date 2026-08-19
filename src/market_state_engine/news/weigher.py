@@ -38,6 +38,9 @@ from market_state_engine.features.decay import recency_decay
 
 from .relevance import build_evidence_text, compute_relevance_map
 
+_MAX_DIGEST_ITEMS = 40
+_PRIMARY_ASSET_COVERAGE = ("BTC", "ETH", "GOLD", "WTI")
+
 
 class NewsWeigher:
     """Compute deterministic per-asset news weights."""
@@ -117,6 +120,48 @@ class NewsWeigher:
 
         return max(0.0, min(1.0, value))
 
+    def _is_fresh(self, published_at: str, now: datetime) -> bool:
+        """Return whether an ordinary NewsItem is eligible at injected Run time."""
+
+        try:
+            published = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return False
+
+        if published.tzinfo is None or now.tzinfo is None:
+            return False
+
+        age_hours = (now - published).total_seconds() / 3600.0
+        return 0.0 <= age_hours <= self._half_lives.max_news_age_hours
+
+    @staticmethod
+    def _select_items(
+        ranked: list[WeightedNewsItem],
+        max_items: int = _MAX_DIGEST_ITEMS,
+    ) -> list[WeightedNewsItem]:
+        """Apply the global cap without starving available primary assets."""
+
+        if len(ranked) <= max_items:
+            return ranked
+
+        selected_ids: set[str] = set()
+
+        for asset in _PRIMARY_ASSET_COVERAGE:
+            representative = next(
+                (item for item in ranked if asset in item.asset_weights),
+                None,
+            )
+            if representative is not None:
+                selected_ids.add(representative.news_id)
+
+        for item in ranked:
+            if len(selected_ids) >= max_items:
+                break
+            selected_ids.add(item.news_id)
+
+        # Preserve the original deterministic ranking in the final digest.
+        return [item for item in ranked if item.news_id in selected_ids][:max_items]
+
     def weigh(
         self,
         run_id: str,
@@ -145,16 +190,6 @@ class NewsWeigher:
         weighted: list[WeightedNewsItem] = []
 
         for item in items:
-            quality = self._quality(item.source)
-
-            decay = recency_decay(
-                item.published_at,
-                now,
-                half_life,
-            )
-
-            decay = max(0.0, min(1.0, float(decay)))
-
             # -----------------------------------------------------------------
             # PRINCIPLE 1:
             # No keyword, tag or asset-classification logic belongs here.
@@ -166,6 +201,19 @@ class NewsWeigher:
                 item=item,
                 target_assets=targets,
             )
+
+            if not any(relevance > 0.0 for relevance in relevance_map.values()):
+                continue
+
+            # Freshness is an eligibility boundary for ordinary NewsItems,
+            # not a claim about the lifetime of an economic or geopolitical
+            # event. It runs before weighting, coverage, and global limiting.
+            if not self._is_fresh(item.published_at, now):
+                continue
+
+            quality = self._quality(item.source)
+            decay = recency_decay(item.published_at, now, half_life)
+            decay = max(0.0, min(1.0, float(decay)))
 
             asset_weights: dict[str, AssetNewsWeight] = {}
 
@@ -256,7 +304,7 @@ class NewsWeigher:
 
         return NewsDigest(
             run_id=run_id,
-            items=weighted,
+            items=self._select_items(weighted),
             weighting_versions={
                 "source_quality": self._sq.version,
                 "half_lives": self._half_lives.version,

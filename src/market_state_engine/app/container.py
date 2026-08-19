@@ -16,6 +16,7 @@ from market_state_engine.config.loader import ConfigBundle, load_config_bundle, 
 from market_state_engine.core.enums import RegimeState
 from market_state_engine.core.run_context import RunContext
 from market_state_engine.observability.metrics import Metrics
+from market_state_engine.persistence.repositories import RunRepository
 from market_state_engine.persistence.session import Database, build_engine, resolve_url
 from market_state_engine.pipeline.orchestrator import IngestBundle, PipelineOrchestrator
 from market_state_engine.pipeline.runner import RunService
@@ -27,7 +28,7 @@ from market_state_engine.reasoning.models import CallRecord
 from market_state_engine.rules.engine import RuleEngine
 from market_state_engine.rules.loader import load_rulebook, read_rulebook_version
 
-_PIPELINE_VERSION = "1.0.0"
+_PIPELINE_VERSION = "1.1.0"
 
 
 def _utc_now() -> datetime:  # pragma: no cover - trivial default, overridden in tests
@@ -119,10 +120,16 @@ def build_container(
         if ingest_provider is not None
         else ingest_provider_factory(database)  # type: ignore[misc]
     )
+
+    def _next_run_sequence() -> int:
+        with database.session() as session:
+            return RunRepository(session).next_sequence()
+
     scheduler = Scheduler(
         run_service=run_service,
         ingest_provider=resolved_ingest,
         clock=clock,
+        run_sequence_provider=_next_run_sequence,
         previous_state_provider=previous_state_provider,
         versions={"pipeline": _PIPELINE_VERSION, "rulebook": rulebook_version},
     )

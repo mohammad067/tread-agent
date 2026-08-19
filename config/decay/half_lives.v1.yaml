@@ -1,4 +1,6 @@
-version: 1.0.0
+version: 1.1.0
+# Hard eligibility window for ordinary NewsItems. This is not event persistence.
+max_news_age_hours: 36.0
 # Per-event-type recency half-life for news effective_weight (hours).
 news_half_life_hours:
   us_cpi: 24.0

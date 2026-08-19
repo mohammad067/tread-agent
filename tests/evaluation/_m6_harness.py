@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from market_state_engine.app.container import Container, build_container
+from market_state_engine.core.dtos import NewsItem
 from market_state_engine.core.enums import RegimeState
 from market_state_engine.pipeline.orchestrator import IngestBundle
 from market_state_engine.reasoning.adapters.fake import FakeProvider
@@ -35,8 +36,10 @@ __all__ = [
     "fixed_clock",
     "ingest_provider",
     "ingest_provider_no_news",
+    "ingest_provider_stale_news",
     "sentiment_text",
     "stored_full_run",
+    "stored_stale_news_run",
     "synthesis_text",
 ]
 
@@ -51,6 +54,26 @@ def ingest_provider_no_news(ctx: object) -> IngestBundle:
         global_snapshots=base.global_snapshots,
         events=base.events,
         news_items=[],
+    )
+
+
+def ingest_provider_stale_news(ctx: object) -> IngestBundle:
+    """Same run inputs with one persisted relevant NewsItem that is 37 hours old."""
+    base = ingest_provider(ctx)
+    return IngestBundle(
+        indicator_snapshots=base.indicator_snapshots,
+        price_snapshots=base.price_snapshots,
+        global_snapshots=base.global_snapshots,
+        events=base.events,
+        news_items=[
+            NewsItem(
+                news_id="stale-news",
+                title="Bitcoin market update",
+                source="wire_reuters",
+                published_at="2026-07-12T23:47:03Z",
+                asset_tags=["BTC"],
+            )
+        ],
     )
 
 
@@ -82,5 +105,18 @@ def build_degraded_container() -> Container:
 def stored_full_run(run_id: str, *, no_news: bool = False) -> Container:
     """Build a container and persist one full run under ``run_id``; return the container."""
     c = build_full_container(no_news=no_news)
+    c.scheduler.run_manual(run_id=run_id)
+    return c
+
+
+def stored_stale_news_run(run_id: str) -> Container:
+    c = build_container(
+        REPO,
+        env="dev",
+        ingest_provider=ingest_provider_stale_news,
+        overrides={"anthropic": SequencedFake("anthropic")},
+        clock=fixed_clock,
+        previous_state_provider=lambda: RegimeState.TRANSITION,
+    )
     c.scheduler.run_manual(run_id=run_id)
     return c

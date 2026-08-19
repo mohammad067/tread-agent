@@ -158,4 +158,7 @@ def test_manual_trigger_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
         "/v1/runs:trigger", json={"reason": "test"}, headers={"x-api-key": "write-key"}
     )
     assert resp.status_code == 200
-    assert "run_id" in resp.json()["data"]
+    run_id = resp.json()["data"]["run_id"]
+    latest = client.get("/v1/state/latest")
+    assert latest.status_code == 200
+    assert latest.json()["data"]["run_id"] == run_id

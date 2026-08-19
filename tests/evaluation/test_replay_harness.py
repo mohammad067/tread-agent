@@ -8,7 +8,7 @@ from market_state_engine.evaluation.replay_harness import ReplayHarness
 from market_state_engine.ingestion.real import news_feeds
 from market_state_engine.persistence.repositories import RunRepository
 
-from ._m6_harness import REPO, fixed_clock, stored_full_run
+from ._m6_harness import REPO, fixed_clock, stored_full_run, stored_stale_news_run
 
 
 def test_replay_with_news_restores_inputs_and_prompt_hashes(
@@ -84,3 +84,22 @@ def test_replay_is_deterministic_across_two_runs() -> None:
     r2 = harness.run(c.database, run_id)
     assert r1.stored_core_fingerprint == r2.stored_core_fingerprint
     assert r1.replayed_core_fingerprint == r2.replayed_core_fingerprint
+
+
+def test_37_hour_news_is_ineligible_in_live_and_replay() -> None:
+    run_id = "RPLYSTALE000000000000000AB"
+    c = stored_stale_news_run(run_id)
+    harness = ReplayHarness(REPO, fixed_clock)
+    loaded = harness.load(c.database, run_id)
+
+    assert [item.news_id for item in loaded.ingest.news_items] == ["stale-news"]
+    assert [record.llm_job.value for record in loaded.call_records] == ["synthesis"]
+
+    result = harness.replay(loaded)
+
+    assert result.deterministic_match is True
+    assert result.full_deterministic_match is True
+    assert result.call_records_match is True
+    assert result.call_verification.compared == 1
+    assert result.call_verification.diffs == []
+    assert result.reproduced_is_degraded is False

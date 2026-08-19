@@ -20,7 +20,7 @@
 | ADR | Title | Status | Written | Notes |
 |-----|-------|--------|---------|-------|
 | [ADR-001](ADR-001-rule-engine-primary.md) | Deterministic Rule Engine primary path, LLM as exception layer | Accepted | M1 (2026-07-19) | Master-prompt seed. |
-| [ADR-002](ADR-002-two-llm-calls.md) | Two separate LLM calls (sentiment vs synthesis) | Accepted | M1 (2026-07-19) | Master-prompt seed. |
+| [ADR-002](ADR-002-two-llm-calls.md) | Two separate LLM jobs (sentiment vs synthesis) | Accepted, amended | M1 (2026-07-19); amended 2026-08-18 | Call #1 conditional on eligible evidence; Call #2 remains independent. |
 | [ADR-003](ADR-003-yaml-rules.md) | YAML rules instead of DB/vector store (with migration threshold) | Accepted | M1 (2026-07-19) | Master-prompt seed. |
 | [ADR-004](ADR-004-replay-immutable-snapshots.md) | Replay Harness + immutable input snapshots as day-one requirement | Accepted | M1 (2026-07-19) | Referenced by ADR-007/011. |
 | [ADR-005](ADR-005-regime-first-usd-irr-exception.md) | Regime-first analysis with USD/IRR low-sensitivity exception | Accepted | M1 (2026-07-19) | Master-prompt seed. |
@@ -29,7 +29,7 @@
 | [ADR-008](ADR-008-trader-signoff-gate.md) | Trader sign-off (`economic_rationale`) as a hard gate for rules | Accepted | M1 (2026-07-19) | Challenge A4. |
 | [ADR-009](ADR-009-crypto-price-aggregation.md) | Multi-venue crypto price aggregation policy (median, deviation flags) | Accepted | M1 (2026-07-19) | Challenges A8/A9/A10. |
 | [ADR-010](ADR-010-environments-secrets-deployment.md) | Environments, secrets, and deployment model | Accepted | M1 (2026-07-19) | Challenge A1. |
-| **[ADR-011](ADR-011-degraded-run-failure-isolation.md)** | **Degraded Run & Provider Failure Isolation** | **Accepted (frozen)** | **2026-07-18** | **Split from ADR-007. FROZEN.** |
+| **[ADR-011](ADR-011-degraded-run-failure-isolation.md)** | **Degraded Run & Provider Failure Isolation** | **Accepted (frozen)** | **2026-07-18; DR-6 clarified 2026-08-18** | **Provider-failure invariants frozen; no-input explicitly is not failure.** |
 | [ADR-012](ADR-012-api-only-no-frontend.md) | API-only system, no front-end | Accepted | M1 (2026-07-19) | User directive; §3. |
 | [ADR-013](ADR-013-evolution-extension-points.md) | Reserved extension points for the Evolution Roadmap | Accepted | M1 (2026-07-19) | §5 roadmap seams. |
 | [ADR-014](ADR-014-summary-language-units-proxy-label.md) | Summary language (FA-only), USD/IRR units (IRT), proxy labeling (internal-only) | Accepted | pre-M2 (2026-07-19) | **Resolves O1/D1/D2.** |

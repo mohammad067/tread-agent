@@ -4,7 +4,7 @@
 > Replay, Evaluation, and the Event Log. **Design only — no code.** Sequence diagrams in
 > [sequence-diagrams.md](sequence-diagrams.md). Terms binding per
 > [../product/09-domain-dictionary.md](../product/09-domain-dictionary.md).
-> **Version:** 1.0.0
+> **Version:** 1.1.0
 
 ---
 
@@ -42,7 +42,7 @@ graph TB
   I["2 Ingest<br/>snapshot raw inputs → Event Log<br/>mark is_stale/data_gaps; deviation checks"] --> F
   F["3 Feature computation (deterministic)<br/>indicators, changes, ATR%, event proximity,<br/>surprise, news effective weights, decay"] --> RM
   RM["4 Rule matching<br/>activated rules + causal edges"] --> L1
-  L1["5 LLM Call #1 — Sentiment<br/>MarketReasoner.analyze_sentiment(NewsDigest)"] --> DS
+  L1["5 Conditional LLM Call #1 — Sentiment<br/>only for non-empty eligible NewsDigest"] --> DS
   DS["6 Deterministic scoring<br/>trend, risk, regime (det. confidence), MHI"] --> L2
   L2["7 LLM Call #2 — Synthesis<br/>MarketReasoner.synthesize(state + rules + sentiment)"] --> G
   G["8 Guardrails<br/>schema/range/consistency/contradiction/grounding"] --> P
@@ -61,8 +61,9 @@ graph TB
 - **Stage 3 Features:** *all* arithmetic; deterministic and replay-safe (the LLM never computes numbers).
 - **Stage 4 Rule matching:** surprise-based conditions; regime-guarded rules read regime **only after** stage
   6 for guards that need it — see ordering note below.
-- **Stages 5 & 7 (LLM):** separated calls (ADR-002); each goes through `MarketReasoner` → `LLMGateway`; each
-  can independently degrade (ADR-011 DR-5).
+- **Stages 5 & 7 (LLM):** separated jobs (ADR-002). Call #1 runs only for a non-empty eligible digest and
+  only for represented assets. Call #2 runs with the State Vector even when sentiment is absent. Attempted
+  calls go through `MarketReasoner` → `LLMGateway` and can independently degrade (ADR-011 DR-5/DR-6).
 - **Stage 6 Scoring/Regime:** regime computed **first** among market outputs; USD/IRR excepted (ADR-005);
   `confidence` deterministic (A2).
 - **Stage 8 Guardrails:** deterministic post-validation; **publish-with-flags** default; grounding check
@@ -86,7 +87,7 @@ graph LR
   FEED["External pre-collected<br/>news feed (Q3)"] --> NS["NewsSource ingestor"]
   NS --> NI["news_items (persist)"]
   NI --> SNAP["run_inputs snapshot<br/>(news the run saw)"]
-  SNAP --> NW["NewsWeigher<br/>effective_weight = source_quality × relevance × recency_decay"]
+  SNAP --> NW["NewsWeigher<br/>relevance + freshness eligibility + deterministic weight"]
   NW --> DIG["NewsDigest (weighted, ranked)"]
   DIG --> L1["LLM Call #1 (Sentiment)"]
 ```
@@ -94,8 +95,13 @@ graph LR
 - **Consumes, never collects** (Q3). The system reads a supplied feed into `NewsItem`s; collection is out of
   scope.
 - **Weights computed in code** (F-6); the LLM consumes the digest and never assigns weights.
-- **Per-event-type half-lives** drive recency decay (`config/decay/`).
+- **Per-event-type half-lives** drive recency decay (`config/decay/`). Ordinary News Items additionally have
+  a configured `max_news_age_hours` eligibility window (initially 36 hours), evaluated against Run time
+  before coverage/quota selection. Future timestamps are ineligible.
 - **Snapshotted** into `run_inputs` so replay feeds the exact same news the run saw.
+- **News freshness is not event persistence.** Removing an old News Item from the digest does not assert that
+  a war, sanction, supply disruption, or macro event has ended. Persistent-event state is a separate deferred
+  capability; stale News Items must not simulate it. CPI/FOMC/NFP remain on the MacroEvent/Rule Engine path.
 
 ---
 

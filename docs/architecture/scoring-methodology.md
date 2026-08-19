@@ -65,7 +65,7 @@ mapped to [0,1] "health" (higher = healthier), combined, then scaled to 0–100:
 |-------------------|----------------------|
 | `trend` | `(trend + 1) / 2` |
 | `risk` | `1 − risk` (lower risk = healthier) |
-| `sentiment` | `(sentiment + 1) / 2` if present; **when sentiment is absent (degraded), this component is dropped and remaining weights renormalized** |
+| `sentiment` | `(sentiment + 1) / 2` if present; **when sentiment is absent (no eligible news or degradation), this component is dropped and remaining weights renormalized** |
 | `volatility` | `1 − clamp(atr_pct / ATR_FULL, 0, 1)` |
 
 `mhi = round(100 · Σ wₖ·healthₖ / Σ wₖ_present)`.

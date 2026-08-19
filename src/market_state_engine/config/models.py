@@ -66,6 +66,7 @@ class HalfLives(_Cfg):
     version: str
     news_half_life_hours: dict[str, float]
     rule_half_life_defaults: dict[str, float]
+    max_news_age_hours: float = Field(gt=0.0)
 
 
 class DatabaseCfg(_Cfg):

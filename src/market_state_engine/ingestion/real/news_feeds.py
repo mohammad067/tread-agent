@@ -99,7 +99,6 @@ _FEEDS: list[tuple[str, str, list[str]]] = [
     ),
 ]
 
-_MAX_ITEMS = 40
 _BODY_LIMIT = 2000
 _TITLE_LIMIT = 500
 _FETCH_TIMEOUT_SECONDS = 20.0
@@ -391,9 +390,9 @@ class RssNewsSource:
     def __init__(
         self,
         feeds: list[tuple[str, str, list[str]]] | None = None,
-        max_items: int = _MAX_ITEMS,
+        max_items: int | None = None,
     ) -> None:
-        if max_items < 0:
+        if max_items is not None and max_items < 0:
             raise ValueError("max_items must be >= 0")
 
         self._feeds = (
@@ -465,4 +464,9 @@ class RssNewsSource:
             reverse=True,
         )
 
+        # Production leaves candidate limiting to the downstream deterministic
+        # selection policy, after per-asset relevance is known. An explicit
+        # limit remains available for callers that intentionally request one.
+        if self._max_items is None:
+            return items
         return items[: self._max_items]

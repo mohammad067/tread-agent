@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
+from market_state_engine.app.container import build_container
 from market_state_engine.core.dtos import RawSnapshot, TotalMcapSample
-from market_state_engine.persistence.models import Base
+from market_state_engine.persistence.models import Base, RunOutputRow, RunRow
 from market_state_engine.persistence.repositories import (
     CallRecordRepository,
     EventLogRepository,
@@ -15,7 +20,13 @@ from market_state_engine.persistence.repositories import (
 )
 from market_state_engine.persistence.session import Database, build_engine, create_all
 
-from ._harness import build_full_container
+from ._harness import (
+    REPO,
+    SequencedFake,
+    build_full_container,
+    fixed_clock,
+    ingest_provider,
+)
 
 
 def _memory_db() -> Database:
@@ -183,10 +194,100 @@ def test_news_repository_upsert_idempotent() -> None:
 
 def test_list_runs_filter_and_paginate() -> None:
     c = build_full_container()
-    c.scheduler.run_manual()
-    c.scheduler.run_manual()
+    first = c.scheduler.run_manual()
+    second = c.scheduler.run_manual()
     with c.database.session() as s:
         all_runs = RunRepository(s).list_runs(limit=10)
         events_only = RunRepository(s).list_runs(trigger_type="event", limit=10)
     assert len(all_runs) == 2
     assert len(events_only) == 2  # manual triggers are trigger_type=event
+    assert [run["run_id"] for run in all_runs] == [second.run_id, first.run_id]
+
+
+def test_run_sequence_is_database_backed() -> None:
+    c = build_full_container()
+    first = c.scheduler.run_manual()
+    second = c.scheduler.run_manual()
+
+    with c.database.session() as session:
+        first_run = RunRepository(session).get(first.run_id)
+        second_run = RunRepository(session).get(second.run_id)
+        latest = RunRepository(session).latest()
+
+    assert first_run is not None and first_run["run_sequence"] == 1
+    assert second_run is not None and second_run["run_sequence"] == 2
+    assert latest is not None and latest["run_id"] == second.run_id
+
+
+def test_run_sequence_continues_after_container_restart(tmp_path: Path) -> None:
+    database_path = str(tmp_path / "restart.db")
+    first_container = build_container(
+        REPO,
+        env="dev",
+        ingest_provider=ingest_provider,
+        overrides={"anthropic": SequencedFake("anthropic")},
+        clock=fixed_clock,
+        sqlite_path=database_path,
+    )
+    first = first_container.scheduler.run_manual()
+
+    restarted_container = build_container(
+        REPO,
+        env="dev",
+        ingest_provider=ingest_provider,
+        overrides={"anthropic": SequencedFake("anthropic")},
+        clock=fixed_clock,
+        sqlite_path=database_path,
+    )
+    second = restarted_container.scheduler.run_manual()
+
+    with restarted_container.database.session() as session:
+        first_run = RunRepository(session).get(first.run_id)
+        second_run = RunRepository(session).get(second.run_id)
+        latest = RunRepository(session).latest()
+
+    assert first_run is not None and first_run["run_sequence"] == 1
+    assert second_run is not None and second_run["run_sequence"] == 2
+    assert latest is not None and latest["run_id"] == second.run_id
+
+
+def test_latest_uses_completed_persistence_order_for_legacy_sequences() -> None:
+    c = build_full_container()
+    older = c.scheduler.run_manual()
+    newer = c.scheduler.run_manual()
+
+    with c.database.session() as session:
+        older_run = session.get(RunRow, older.run_id)
+        newer_run = session.get(RunRow, newer.run_id)
+        older_output = session.get(RunOutputRow, older.run_id)
+        newer_output = session.get(RunOutputRow, newer.run_id)
+        assert older_run is not None and newer_run is not None
+        assert older_output is not None and newer_output is not None
+        older_run.run_sequence = 999
+        newer_run.run_sequence = 1
+        older_output.persisted_at = "2026-07-14T12:00:00Z"
+        newer_output.persisted_at = "2026-07-14T13:00:00Z"
+
+    with c.database.session() as session:
+        latest = RunRepository(session).latest()
+        listed = RunRepository(session).list_runs(limit=10)
+
+    assert latest is not None and latest["run_id"] == newer.run_id
+    assert [run["run_id"] for run in listed] == [newer.run_id, older.run_id]
+
+
+def test_failed_run_does_not_replace_latest() -> None:
+    c = build_full_container()
+    successful = c.scheduler.run_manual()
+
+    def failing_ingest(ctx: object) -> object:
+        raise RuntimeError("ingest failed")
+
+    c.scheduler._ingest = failing_ingest  # type: ignore[attr-defined]
+    with pytest.raises(RuntimeError, match="ingest failed"):
+        c.scheduler.run_manual()
+
+    with c.database.session() as session:
+        latest = RunRepository(session).latest()
+
+    assert latest is not None and latest["run_id"] == successful.run_id

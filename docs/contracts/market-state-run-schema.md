@@ -134,7 +134,7 @@ USD_IRR) carry the full indicator suite; **index/context assets** (TOTAL_MCAP) c
 |-------|------|------|--------|-------|
 | `trend` | number [-1,1] | M | deterministic | — |
 | `risk` | number [0,1] | M | deterministic | — |
-| `sentiment` | number [-1,1] \| null | M,N | **LLM** | `null` on Degraded Run (honest absence — never a fabricated 0). |
+| `sentiment` | number [-1,1] \| null | M,N | **LLM** | `null` when no eligible news exists or sentiment is degraded; never a fabricated 0. |
 | `confidence` | number [0,1] | M | deterministic | System confidence for the asset read. |
 
 ### 5.4 `RuleActivation`
@@ -191,6 +191,10 @@ If only synthesis failed (sentiment succeeded): `scores.sentiment` is present; `
 `is_degraded=true` with a flag scoped to synthesis. If only sentiment failed: `sentiment=null`,
 `human_summary_fa` may still be present (synthesis ran on available data), `is_degraded=true`. The fixture set
 covers at least the full-degraded case; partial cases are documented and contract-tested.
+
+An asset with no fresh relevant news also has `sentiment=null`, but this normal no-evidence state does not by
+itself set `is_degraded=true`. Absence of news is not automatically a `data_gaps` entry; that field remains for
+missing, stale, or excluded expected inputs.
 
 ## 10. Field → need traceability (delta from Milestone 0 matrix)
 
