@@ -2,8 +2,8 @@
 
 One SQLAlchemy codebase across dialects. The DSN is resolved from configuration/environment — never
 hardcoded: SQLite (``dialect: sqlite``) uses a file path (or in-memory for tests); Postgres uses the
-DSN from the env var named in config. ``create_all`` builds the schema for dev/CI; production uses
-the Alembic migration (``migrations/``) that mirrors these models.
+DSN from the env var named in config. ``create_all`` is a dev/CI test convenience only; application
+and production bootstrap use Alembic migrations.
 """
 
 from __future__ import annotations

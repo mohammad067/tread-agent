@@ -21,11 +21,6 @@ from typing import Protocol
 
 from market_state_engine.core.dtos import MacroEvent, RawSnapshot, TotalMcapSample
 from market_state_engine.core.run_context import RunContext
-from market_state_engine.ingestion.mocks.mock_sources import (
-    MockFearGreedSource,
-    MockIndicatorInputSource,
-    MockPriceSource,
-)
 from market_state_engine.pipeline.orchestrator import IngestBundle
 
 from .aggregate import aggregate_snapshots
@@ -47,9 +42,8 @@ _log = logging.getLogger("ingestion.real")
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
 _CRYPTO_SYMBOLS = ("BTC", "ETH")
-_MOCK_FALLBACK_SYMBOLS = ("BTC", "ETH", "GOLD", "WTI", "USD_IRR")
-_ALL_SYMBOLS = (*_MOCK_FALLBACK_SYMBOLS, "TOTAL_MCAP")
-_AS_OF_FALLBACK = "2026-07-14T12:45:00Z"
+_ALL_SYMBOLS = ("BTC", "ETH", "GOLD", "WTI", "USD_IRR", "TOTAL_MCAP")
+_FEAR_GREED_LAST_GOOD_KEY = "FEAR_GREED"
 
 
 class TotalMcapHistoryStore(Protocol):
@@ -76,25 +70,6 @@ def build_real_ingest_provider(
         )
 
     return _ingest
-
-
-def _mock_series_bundle() -> dict[str, dict[str, object]]:
-    import math
-
-    out: dict[str, dict[str, object]] = {}
-    for i, s in enumerate(_MOCK_FALLBACK_SYMBOLS):
-        base = 120.0 + i * 10
-        n = 130
-        closes = [base - 0.5 * j + 2.0 * math.sin(j / 3.0) for j in range(n)]
-        out[s] = {
-            "as_of": _AS_OF_FALLBACK,
-            "value": closes[-1],
-            "closes": closes,
-            "highs": [c + 3.0 for c in closes],
-            "lows": [c - 3.0 for c in closes],
-            "volumes": [1000.0 + 40.0 * j for j in range(n)],
-        }
-    return out
 
 
 def real_ingest_provider(
@@ -137,10 +112,6 @@ def real_ingest_provider(
             )
         except Exception as exc:
             _log.warning("real_total_mcap_history_unavailable err=%s", exc)
-
-    mock_series = _mock_series_bundle()
-    mock_ind = MockIndicatorInputSource(mock_series)
-    mock_price = MockPriceSource(mock_series)
 
     indicator_snapshots: dict[str, RawSnapshot] = {}
     price_snapshots: dict[str, RawSnapshot] = {}
@@ -190,76 +161,86 @@ def real_ingest_provider(
                 price_snapshots[sym] = last_good
                 continue
             _log.warning(
-                "real_price_fallback_mock symbol=%s (no live crypto source)", sym
+                "real_price_unavailable symbol=%s (no live or last-good source)", sym
             )
+            continue
 
         # --- GOLD ---
-        if sym == "GOLD" and cg_price.supports(sym):
-            try:
-                live = cg_price.fetch_series(sym, ctx)
-                merged = aggregate_snapshots([live], prefer_source_id="coingecko")
-                if merged is not None:
-                    _record_last_good(last_good_store, merged)
-                    indicator_snapshots[sym] = merged
-                    price_snapshots[sym] = merged
-                    _log.info(
-                        "real_price_ok symbol=%s source=%s", sym, merged.source_id
-                    )
-                    continue
-            except Exception as exc:
-                _log.warning("real_gold_fallback_mock err=%s", exc)
+        if sym == "GOLD":
+            if cg_price.supports(sym):
+                try:
+                    live = cg_price.fetch_series(sym, ctx)
+                    merged = aggregate_snapshots([live], prefer_source_id="coingecko")
+                    if merged is not None:
+                        _record_last_good(last_good_store, merged)
+                        indicator_snapshots[sym] = merged
+                        price_snapshots[sym] = merged
+                        _log.info(
+                            "real_price_ok symbol=%s source=%s", sym, merged.source_id
+                        )
+                        continue
+                except Exception as exc:
+                    _log.warning("real_gold_unavailable err=%s", exc)
             last_good = _load_last_good(last_good_store, sym)
             if last_good is not None:
                 indicator_snapshots[sym] = last_good
                 price_snapshots[sym] = last_good
                 continue
+            _log.warning("real_price_unavailable symbol=GOLD")
+            continue
 
         # --- WTI (Brent via TGJU) ---
-        if sym == "WTI" and wti_src.supports(sym):
-            try:
-                live = wti_src.fetch_series(sym, ctx)
-                merged = aggregate_snapshots([live], prefer_source_id="tgju")
-                if merged is not None:
-                    _record_last_good(last_good_store, merged)
-                    indicator_snapshots[sym] = merged
-                    price_snapshots[sym] = merged
-                    _log.info(
-                        "real_price_ok symbol=%s source=%s stale=%s",
-                        sym,
-                        merged.source_id,
-                        merged.is_stale,
-                    )
-                    continue
-            except Exception as exc:
-                _log.warning("real_wti_fallback_mock err=%s", exc)
+        if sym == "WTI":
+            if wti_src.supports(sym):
+                try:
+                    live = wti_src.fetch_series(sym, ctx)
+                    merged = aggregate_snapshots([live], prefer_source_id="tgju")
+                    if merged is not None:
+                        _record_last_good(last_good_store, merged)
+                        indicator_snapshots[sym] = merged
+                        price_snapshots[sym] = merged
+                        _log.info(
+                            "real_price_ok symbol=%s source=%s stale=%s",
+                            sym,
+                            merged.source_id,
+                            merged.is_stale,
+                        )
+                        continue
+                except Exception as exc:
+                    _log.warning("real_wti_unavailable err=%s", exc)
             last_good = _load_last_good(last_good_store, sym)
             if last_good is not None:
                 indicator_snapshots[sym] = last_good
                 price_snapshots[sym] = last_good
                 continue
+            _log.warning("real_price_unavailable symbol=WTI")
+            continue
 
         # --- USD_IRR ---
-        if sym == "USD_IRR" and usd_src.supports(sym):
-            try:
-                live = usd_src.fetch_series(sym, ctx)
-                _record_last_good(last_good_store, live)
-                indicator_snapshots[sym] = live
-                price_snapshots[sym] = live
-                _log.info(
-                    "real_price_ok symbol=%s source=%s stale=%s flags=%s",
-                    sym,
-                    live.source_id,
-                    live.is_stale,
-                    live.deviation_flags,
-                )
-                continue
-            except Exception as exc:
-                _log.warning("real_usd_irr_unavailable err=%s", exc)
-                last_good = _load_last_good(last_good_store, sym)
-                if last_good is not None:
-                    indicator_snapshots[sym] = last_good
-                    price_snapshots[sym] = last_good
-                continue
+        if sym == "USD_IRR":
+            if usd_src.supports(sym):
+                try:
+                    live = usd_src.fetch_series(sym, ctx)
+                    _record_last_good(last_good_store, live)
+                    indicator_snapshots[sym] = live
+                    price_snapshots[sym] = live
+                    _log.info(
+                        "real_price_ok symbol=%s source=%s stale=%s flags=%s",
+                        sym,
+                        live.source_id,
+                        live.is_stale,
+                        live.deviation_flags,
+                    )
+                    continue
+                except Exception as exc:
+                    _log.warning("real_usd_irr_unavailable err=%s", exc)
+            last_good = _load_last_good(last_good_store, sym)
+            if last_good is not None:
+                indicator_snapshots[sym] = last_good
+                price_snapshots[sym] = last_good
+            else:
+                _log.warning("real_price_unavailable symbol=USD_IRR")
+            continue
 
         # --- TOTAL_MCAP ---
         if sym == "TOTAL_MCAP":
@@ -280,19 +261,24 @@ def real_ingest_provider(
                     price_snapshots[sym] = last_good
             continue
 
-        # --- mock only if branches above did not continue ---
-        indicator_snapshots[sym] = mock_ind.fetch_series(sym, ctx)
-        price_snapshots[sym] = mock_price.fetch(sym, ctx)
-
     global_snapshots: dict[str, RawSnapshot] = {}
     try:
-        global_snapshots["fear_greed"] = fng.fetch(ctx)
+        live_fear_greed = fng.fetch(ctx)
+        global_snapshots["fear_greed"] = live_fear_greed
+        _record_last_good(
+            last_good_store,
+            live_fear_greed.model_copy(update={"symbol": _FEAR_GREED_LAST_GOOD_KEY}),
+        )
         _log.info("real_fear_greed_ok")
     except Exception as exc:
-        _log.warning("fear_greed_fallback_mock err=%s", exc)
-        global_snapshots["fear_greed"] = MockFearGreedSource(
-            24, _AS_OF_FALLBACK
-        ).fetch(ctx)
+        _log.warning("real_fear_greed_unavailable err=%s", exc)
+        last_good_fear_greed = _load_last_good(
+            last_good_store, _FEAR_GREED_LAST_GOOD_KEY
+        )
+        if last_good_fear_greed is not None:
+            global_snapshots["fear_greed"] = last_good_fear_greed.model_copy(
+                update={"symbol": None}
+            )
 
     if coinmarketcap_snapshots is not None:
         global_snapshots["dominance"] = coinmarketcap_snapshots.dominance

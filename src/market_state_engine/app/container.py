@@ -16,6 +16,7 @@ from market_state_engine.config.loader import ConfigBundle, load_config_bundle, 
 from market_state_engine.core.enums import RegimeState
 from market_state_engine.core.run_context import RunContext
 from market_state_engine.observability.metrics import Metrics
+from market_state_engine.persistence.migrations import upgrade_or_baseline
 from market_state_engine.persistence.repositories import RunRepository
 from market_state_engine.persistence.session import Database, build_engine, resolve_url
 from market_state_engine.pipeline.orchestrator import IngestBundle, PipelineOrchestrator
@@ -75,6 +76,7 @@ def build_container(
     previous_state_provider: Callable[[], RegimeState | None] | None = None,
     sqlite_path: str | None = None,
     create_schema: bool = True,
+    migrate_schema: bool = False,
 ) -> Container:
     """Wire the full service graph from config. ``ingest_provider`` supplies raw inputs per run."""
     config_dir = root / "config"
@@ -87,7 +89,13 @@ def build_container(
     # Database from env config (dialect + optional DSN env var). No hardcoded connection string.
     url = resolve_url(env_cfg.database.dialect, env_cfg.database.dsn_env, sqlite_path)
     database = Database(build_engine(url))
-    if create_schema:
+    if create_schema and migrate_schema:
+        raise ValueError("create_schema and migrate_schema are mutually exclusive")
+    if migrate_schema:
+        upgrade_or_baseline(database.engine, root)
+    elif create_schema:
+        if env == "prod":
+            raise ValueError("production schema must be managed by Alembic migrations")
         database.create_all()
 
     # Reasoning gateway: config-driven; the recorder sink collects Call Records for persistence.

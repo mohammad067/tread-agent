@@ -66,6 +66,8 @@ def build_default_container() -> Container:
         ingest_provider=ingest_provider,
         ingest_provider_factory=ingest_provider_factory,
         sqlite_path=sqlite_path,
+        create_schema=False,
+        migrate_schema=True,
     )
 
 

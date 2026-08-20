@@ -76,6 +76,32 @@ def test_degraded_pipeline_still_succeeds_when_all_providers_fail() -> None:
     assert "degraded_run" in {f["code"] for f in run["guardrail_flags"]}
 
 
+def test_pipeline_publishes_honest_unavailable_prices_without_ingest_snapshots() -> None:
+    def unavailable_ingest(ctx: object) -> IngestBundle:
+        return IngestBundle({}, {}, {}, [], [])
+
+    c = build_container(
+        REPO,
+        env="dev",
+        ingest_provider=unavailable_ingest,
+        overrides={"anthropic": SequencedFake("anthropic")},
+        clock=fixed_clock,
+        previous_state_provider=lambda: RegimeState.TRANSITION,
+    )
+
+    summary = c.scheduler.run_manual()
+    with c.database.session() as session:
+        run = RunRepository(session).get(summary.run_id)
+
+    assert summary.published is True
+    assert run is not None
+    assert {asset["symbol"] for asset in run["assets"]} == set(SYMBOLS)
+    assert all(asset["price"]["is_stale"] is True for asset in run["assets"])
+    assert all(
+        asset["price"]["stale_reason"] == "price_unavailable" for asset in run["assets"]
+    )
+
+
 def test_empty_digest_skips_sentiment_but_synthesis_remains_healthy() -> None:
     c = _container_with_news([])
     summary = c.scheduler.run_manual()

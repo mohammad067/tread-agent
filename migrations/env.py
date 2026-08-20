@@ -8,7 +8,7 @@ SQLite (dev/CI) and Postgres (prod).
 from __future__ import annotations
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import Connection, engine_from_config, pool
 
 from market_state_engine.persistence.models import Base
 
@@ -30,6 +30,17 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    supplied_connection = config.attributes.get("connection")
+    if isinstance(supplied_connection, Connection):
+        context.configure(
+            connection=supplied_connection,
+            target_metadata=target_metadata,
+            render_as_batch=True,
+        )
+        with context.begin_transaction():
+            context.run_migrations()
+        return
+
     section = config.get_section(config.config_ini_section) or {}
     connectable = engine_from_config(section, prefix="sqlalchemy.", poolclass=pool.NullPool)
     with connectable.connect() as connection:

@@ -18,7 +18,6 @@ from market_state_engine.ingestion.real.coinmarketcap import (
     CoinMarketCapGlobalSource,
     enrich_total_mcap_history,
 )
-from market_state_engine.ingestion.real.provider import _mock_series_bundle
 
 REPO = Path(__file__).resolve().parents[2]
 FIXTURE = REPO / "tests" / "fixtures" / "coinmarketcap_global_latest.sanitized.json"
@@ -103,10 +102,6 @@ def test_feature_engine_uses_explicit_24h_without_fabricating_other_horizons() -
     assert total.changes.d7 is None
     assert total.changes.d30 is None
     assert total.indicators == {}
-
-
-def test_total_mcap_has_no_real_provider_mock_fallback() -> None:
-    assert "TOTAL_MCAP" not in _mock_series_bundle()
 
 
 def test_history_enrichment_builds_real_7d_and_30d_changes() -> None:
