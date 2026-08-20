@@ -94,9 +94,9 @@ class GateCryptoPriceSource:
         source_rows = self._client.fetch_candles(currency_pair, limit=_SOURCE_LIMIT)
         bars = _six_hour_bars(source_rows, currency_pair)
         as_of = ctx.now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        source_as_of = datetime.fromtimestamp(
-            bars[-1][0], tz=timezone.utc
-        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        source_as_of = datetime.fromtimestamp(bars[-1][0], tz=timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
         payload: dict[str, Any] = {
             "as_of": as_of,
             "value": bars[-1][1],
