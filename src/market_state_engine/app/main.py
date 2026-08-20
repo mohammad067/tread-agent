@@ -18,22 +18,18 @@ from fastapi import FastAPI
 
 from market_state_engine.api.app import create_app
 from market_state_engine.app.container import Container, build_container
+from market_state_engine.app.environment import load_root_dotenv, resolve_ingest_mode
 from market_state_engine.app.ingest import mock_ingest_provider
 from market_state_engine.core.run_context import RunContext
 from market_state_engine.observability.logging import configure_logging
 from market_state_engine.persistence.session import Database
 from market_state_engine.pipeline.orchestrator import IngestBundle
 
-# خواندن فایل .env از ریشهٔ پروژه (اگر python-dotenv نصب باشد)
-try:
-    from dotenv import load_dotenv
-
-    load_dotenv()
-except ImportError:
-    pass
-
 # parents[3]: .../app/main.py → app → market_state_engine → src → ریشهٔ ریپو
 _ROOT = Path(__file__).resolve().parents[3]
+
+# Load the repository-root file explicitly; process environment variables retain precedence.
+load_root_dotenv(_ROOT)
 
 
 def _build_real_ingest(database: Database) -> Callable[[RunContext], IngestBundle]:
@@ -48,10 +44,10 @@ def _build_real_ingest(database: Database) -> Callable[[RunContext], IngestBundl
 
 
 def build_default_container() -> Container:
-    env = os.environ.get("MSE_ENV", "dev")
+    env = os.environ.get("MSE_ENV", "dev").strip().lower()
     sqlite_path = os.environ.get("MSE_SQLITE_PATH", str(_ROOT / "mse_dev.db"))
 
-    ingest_mode = os.environ.get("MSE_INGEST", "mock").strip().lower()
+    ingest_mode = resolve_ingest_mode(env, os.environ.get("MSE_INGEST"))
 
     if ingest_mode == "real":
         ingest_provider = None

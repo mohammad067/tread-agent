@@ -7,12 +7,14 @@ from pathlib import Path
 import pytest
 
 from market_state_engine.app.container import build_container
-from market_state_engine.core.dtos import RawSnapshot, TotalMcapSample
+from market_state_engine.core.dtos import MacroEvent, RawSnapshot, TotalMcapSample
+from market_state_engine.core.enums import EventType
 from market_state_engine.persistence.models import Base, RunOutputRow, RunRow
 from market_state_engine.persistence.repositories import (
     CallRecordRepository,
     EventLogRepository,
     LastGoodSnapshotRepository,
+    MacroEventRepository,
     NewsRepository,
     RuleActivationRepository,
     RunRepository,
@@ -48,6 +50,7 @@ def test_create_all_builds_every_table() -> None:
         "rule_activations",
         "total_mcap_samples",
         "last_good_snapshots",
+        "macro_events",
     }
     assert expected <= set(Base.metadata.tables)
 
@@ -190,6 +193,44 @@ def test_news_repository_upsert_idempotent() -> None:
         row = NewsRepository(s).get("n1")
     assert row is not None
     assert row.ingested_at == "2026-07-14T12:00:00Z"  # first write wins (idempotent)
+
+
+def test_macro_event_repository_is_idempotent_and_replay_readable() -> None:
+    db = _memory_db()
+    event = MacroEvent(
+        event_id="us_cpi_2026_08",
+        event_type=EventType.US_CPI,
+        scheduled_at="2026-08-20T12:30:00Z",
+        consensus=0.3,
+        actual=0.4,
+    )
+    raw = event.model_dump(mode="json")
+    with db.session() as session:
+        repository = MacroEventRepository(session)
+        first, first_created = repository.add_if_absent(
+            event,
+            surprise=0.1,
+            raw=raw,
+            ingested_at="2026-08-20T12:31:00Z",
+        )
+        duplicate, duplicate_created = repository.add_if_absent(
+            event.model_copy(update={"actual": 9.0}),
+            surprise=8.7,
+            raw={**raw, "actual": 9.0},
+            ingested_at="2026-08-20T12:32:00Z",
+        )
+        restored = repository.get(event.event_id)
+        replay_events = repository.list_events()
+
+    assert first_created is True
+    assert duplicate_created is False
+    assert duplicate.event_id == first.event_id
+    assert restored is not None
+    assert restored.actual == 0.4
+    assert restored.surprise == 0.1
+    assert restored.raw == raw
+    assert restored.ingested_at == "2026-08-20T12:31:00Z"
+    assert replay_events == [event]
 
 
 def test_list_runs_filter_and_paginate() -> None:

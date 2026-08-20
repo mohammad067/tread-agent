@@ -14,6 +14,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     Float,
+    Index,
     Integer,
     String,
     Text,
@@ -181,3 +182,22 @@ class LastGoodSnapshotRow(Base):
     as_of: Mapped[str] = mapped_column(_TS)
     deviation_flags: Mapped[list[object]] = mapped_column(PortableJSON)
     content_hash: Mapped[str] = mapped_column(String(64))
+
+
+class MacroEventRow(Base):
+    """Idempotent manually submitted macro event retained for audit and replay."""
+
+    __tablename__ = "macro_events"
+    __table_args__ = (
+        Index("ix_macro_events_type_scheduled", "event_type", "scheduled_at"),
+    )
+
+    event_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(32))
+    scheduled_at: Mapped[str] = mapped_column(_TS)
+    consensus: Mapped[float] = mapped_column(Float)
+    actual: Mapped[float | None] = mapped_column(Float, nullable=True)
+    surprise: Mapped[float | None] = mapped_column(Float, nullable=True)
+    entered_by: Mapped[str] = mapped_column(String(32))
+    raw: Mapped[dict[str, object]] = mapped_column(PortableJSON)
+    ingested_at: Mapped[str] = mapped_column(_TS)

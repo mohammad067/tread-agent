@@ -29,8 +29,9 @@ _EXPECTED_TABLES = {
     "rule_activations",
     "total_mcap_samples",
     "last_good_snapshots",
+    "macro_events",
 }
-_HEAD = "0004_align_bootstrap_schema"
+_HEAD = "0005_macro_events"
 
 
 def _config(db_path: Path) -> Config:
@@ -67,6 +68,29 @@ def test_runs_table_has_m2_field_additions(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite:///{db_path}")
     cols = {c["name"] for c in inspect(engine).get_columns("runs")}
     assert {"is_degraded", "provider_version", "model_version", "pricing_version"} <= cols
+
+
+def test_macro_events_table_matches_persistence_contract(tmp_path: Path) -> None:
+    db_path = tmp_path / "mse.db"
+    command.upgrade(_config(db_path), "head")
+    engine = create_engine(f"sqlite:///{db_path}")
+    inspector = inspect(engine)
+
+    columns = {column["name"] for column in inspector.get_columns("macro_events")}
+    indexes = {index["name"] for index in inspector.get_indexes("macro_events")}
+
+    assert columns == {
+        "event_id",
+        "event_type",
+        "scheduled_at",
+        "consensus",
+        "actual",
+        "surprise",
+        "entered_by",
+        "raw",
+        "ingested_at",
+    }
+    assert "ix_macro_events_type_scheduled" in indexes
 
 
 def test_compatible_unversioned_database_is_stamped_without_losing_data(

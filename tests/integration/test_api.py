@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from market_state_engine.api.app import create_app
+from market_state_engine.persistence.repositories import MacroEventRepository
 
 from ._harness import build_degraded_container, build_full_container
 
@@ -128,13 +129,98 @@ def test_write_endpoint_with_key_accepts_event(monkeypatch: pytest.MonkeyPatch) 
     client = TestClient(create_app(c))
     resp = client.post(
         "/v1/events",
-        json={"event_type": "us_cpi", "event_id": "e1", "consensus": 0.3, "actual": 0.45},
+        json={
+            "event_type": "us_cpi",
+            "event_id": "e1",
+            "scheduled_at": "2026-08-20T12:30:00Z",
+            "consensus": 0.3,
+            "actual": 0.45,
+        },
         headers={"x-api-key": "secret-write"},
     )
     assert resp.status_code == 200
     data = resp.json()["data"]
     assert data["accepted"] is True
     assert data["surprise"] == pytest.approx(0.15)  # computed server-side
+    assert set(data) == {"event_id", "accepted", "surprise"}
+    with c.database.session() as session:
+        stored = MacroEventRepository(session).get("e1")
+    assert stored is not None
+    assert stored.event_type == "us_cpi"
+    assert stored.surprise == pytest.approx(0.15)
+    assert stored.raw["actual"] == 0.45
+
+
+def test_duplicate_macro_event_is_idempotent_and_does_not_overwrite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MSE_API_WRITE_KEY", "write-key")
+    c = build_full_container()
+    client = TestClient(create_app(c))
+    original = {
+        "event_id": "same-event",
+        "event_type": "us_cpi",
+        "scheduled_at": "2026-08-20T12:30:00Z",
+        "consensus": 0.3,
+        "actual": 0.4,
+    }
+    first = client.post(
+        "/v1/events", json=original, headers={"x-api-key": "write-key"}
+    )
+    duplicate = client.post(
+        "/v1/events",
+        json={**original, "actual": 9.0},
+        headers={"x-api-key": "write-key"},
+    )
+
+    assert first.status_code == duplicate.status_code == 200
+    assert duplicate.json()["data"] == first.json()["data"]
+    with c.database.session() as session:
+        events = MacroEventRepository(session).list_events()
+        stored = MacroEventRepository(session).get("same-event")
+    assert [event.event_id for event in events] == ["same-event"]
+    assert stored is not None and stored.actual == 0.4
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {
+            "event_id": "bad-type",
+            "event_type": "unknown",
+            "scheduled_at": "2026-08-20T12:30:00Z",
+            "consensus": 0.3,
+        },
+        {
+            "event_type": "us_cpi",
+            "scheduled_at": "2026-08-20T12:30:00Z",
+            "consensus": 0.3,
+        },
+        {
+            "event_id": "client-surprise",
+            "event_type": "us_cpi",
+            "scheduled_at": "2026-08-20T12:30:00Z",
+            "consensus": 0.3,
+            "actual": 0.4,
+            "surprise": 99.0,
+        },
+    ],
+)
+def test_invalid_macro_event_is_rejected(
+    payload: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MSE_API_WRITE_KEY", "write-key")
+    c = build_full_container()
+    client = TestClient(create_app(c))
+
+    response = client.post(
+        "/v1/events", json=payload, headers={"x-api-key": "write-key"}
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_request"
+    with c.database.session() as session:
+        assert MacroEventRepository(session).list_events() == []
 
 
 def test_read_key_rejected_on_write_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:

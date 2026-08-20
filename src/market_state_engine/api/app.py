@@ -9,24 +9,25 @@ fully-wired ``Container`` (DI); it holds no business logic and constructs no mar
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, Header, Request, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
+from pydantic import ValidationError
 
 from market_state_engine.app.container import Container
-from market_state_engine.core.enums import EventType as MacroEventType
+from market_state_engine.core.dtos import MacroEvent
 from market_state_engine.persistence.repositories import (
     CallRecordRepository,
     EventLogRepository,
+    MacroEventRepository,
     RunRepository,
 )
 from market_state_engine.pipeline.scheduler import OverlapError
 
 from .envelope import envelope, error_body
 from .security import API_KEY_HEADER, AuthError, check_read, check_write
-
-_MACRO_EVENT_TYPES = {e.value for e in MacroEventType}
 
 
 def create_app(container: Container) -> FastAPI:
@@ -143,18 +144,27 @@ def create_app(container: Container) -> FastAPI:
         x_api_key: str | None = Header(default=None, alias=API_KEY_HEADER),
     ) -> Any:
         check_write(x_api_key)
-        event_type = body.get("event_type")
-        if event_type not in _MACRO_EVENT_TYPES:
-            return _invalid(request, "unknown or missing event_type")
+        try:
+            event = MacroEvent.model_validate(body)
+        except ValidationError as exc:
+            return _invalid(
+                request,
+                "invalid macro event",
+                details=exc.errors(include_url=False),
+            )
         # Surprise is computed server-side, never trusted from the client (api-db-fixtures A.3).
-        consensus = body.get("consensus")
-        actual = body.get("actual")
-        surprise = (
-            float(actual) - float(consensus)
-            if isinstance(actual, (int, float)) and isinstance(consensus, (int, float))
-            else None
+        surprise = event.actual - event.consensus if event.actual is not None else None
+        ingested_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        with container.database.session() as session:
+            row, _created = MacroEventRepository(session).add_if_absent(
+                event,
+                surprise=surprise,
+                raw=dict(body),
+                ingested_at=ingested_at,
+            )
+        return envelope(
+            {"event_id": row.event_id, "accepted": True, "surprise": row.surprise}
         )
-        return envelope({"event_id": body.get("event_id"), "accepted": True, "surprise": surprise})
 
     @app.post("/v1/runs:trigger")
     def trigger_run(
@@ -205,9 +215,14 @@ def create_app(container: Container) -> FastAPI:
             status_code=404, content=error_body("not_found", message, _corr(request))
         )
 
-    def _invalid(request: Request, message: str) -> JSONResponse:
+    def _invalid(
+        request: Request, message: str, *, details: object | None = None
+    ) -> JSONResponse:
         return JSONResponse(
-            status_code=422, content=error_body("invalid_request", message, _corr(request))
+            status_code=422,
+            content=error_body(
+                "invalid_request", message, _corr(request), details=details
+            ),
         )
 
     return app

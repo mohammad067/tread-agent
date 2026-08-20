@@ -12,15 +12,18 @@ from collections.abc import Sequence
 from typing import cast
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from market_state_engine.core.dtos import RawSnapshot, TotalMcapSample
+from market_state_engine.core.dtos import MacroEvent, RawSnapshot, TotalMcapSample
+from market_state_engine.core.enums import EventType
 from market_state_engine.core.hashing import content_hash
 
 from .models import (
     CallRecordRow,
     EventLogRow,
     LastGoodSnapshotRow,
+    MacroEventRow,
     NewsItemRow,
     RuleActivationRow,
     RunInputRow,
@@ -228,6 +231,58 @@ class NewsRepository:
         return self._s.get(NewsItemRow, news_id)
 
 
+class MacroEventRepository:
+    """Idempotent persistence and chronological reads for manually submitted events."""
+
+    def __init__(self, session: Session) -> None:
+        self._s = session
+
+    def add_if_absent(
+        self,
+        event: MacroEvent,
+        *,
+        surprise: float | None,
+        raw: dict[str, object],
+        ingested_at: str,
+        entered_by: str = "api",
+    ) -> tuple[MacroEventRow, bool]:
+        existing = self._s.get(MacroEventRow, event.event_id)
+        if existing is not None:
+            return existing, False
+
+        row = MacroEventRow(
+            event_id=event.event_id,
+            event_type=event.event_type.value,
+            scheduled_at=event.scheduled_at,
+            consensus=event.consensus,
+            actual=event.actual,
+            surprise=surprise,
+            entered_by=entered_by,
+            raw=dict(raw),
+            ingested_at=ingested_at,
+        )
+        try:
+            with self._s.begin_nested():
+                self._s.add(row)
+                self._s.flush()
+        except IntegrityError:
+            concurrent = self._s.get(MacroEventRow, event.event_id)
+            if concurrent is None:
+                raise
+            return concurrent, False
+        return row, True
+
+    def get(self, event_id: str) -> MacroEventRow | None:
+        return self._s.get(MacroEventRow, event_id)
+
+    def list_events(self) -> list[MacroEvent]:
+        stmt = select(MacroEventRow).order_by(
+            MacroEventRow.scheduled_at,
+            MacroEventRow.event_id,
+        )
+        return [_macro_event_to_dto(row) for row in self._s.execute(stmt).scalars().all()]
+
+
 class RuleActivationRepository:
     """``rule_activations`` — append-only queryable projection of a run's activated rules."""
 
@@ -382,6 +437,16 @@ def _call_record_fields(record: dict[str, object]) -> dict[str, object]:
 
 def _call_record_to_dict(row: CallRecordRow) -> dict[str, object]:
     return {k: getattr(row, k) for k in _CALL_RECORD_FIELDS}
+
+
+def _macro_event_to_dto(row: MacroEventRow) -> MacroEvent:
+    return MacroEvent(
+        event_id=row.event_id,
+        event_type=EventType(row.event_type),
+        scheduled_at=row.scheduled_at,
+        consensus=row.consensus,
+        actual=row.actual,
+    )
 
 
 def _as_dict(value: object) -> dict[str, object]:
