@@ -114,6 +114,8 @@ class DeterministicStateAssembler:
         return run
 
     def _trigger_detail(self, ctx: RunContext) -> TriggerDetail:
+        if ctx.trigger_detail is not None:
+            return ctx.trigger_detail
         if ctx.trigger_type is TriggerType.SCHEDULED:
             return TriggerDetail(scheduled_for=ctx.now.isoformat().replace("+00:00", "Z"))
         return TriggerDetail(debounced_events=0)

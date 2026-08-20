@@ -99,9 +99,7 @@ def test_hash_is_neutral_across_vendors() -> None:
 
 def test_sentiment_v3_renders_deterministic_weights_and_evidence() -> None:
     golden = json.loads(
-        (REPO / "tests" / "golden" / "reasoning_request.sentiment.json").read_text(
-            encoding="utf-8"
-        )
+        (REPO / "tests" / "golden" / "reasoning_request.sentiment.json").read_text(encoding="utf-8")
     )
     request = ReasoningRequest.model_validate(golden)
 

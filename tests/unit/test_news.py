@@ -43,9 +43,7 @@ def test_effective_weight_is_product() -> None:
         weight.effective_weight for weight in w.asset_weights.values()
     )
     for weight in w.asset_weights.values():
-        assert weight.effective_weight == (
-            w.source_quality * weight.relevance * w.recency_decay
-        )
+        assert weight.effective_weight == (w.source_quality * weight.relevance * w.recency_decay)
 
 
 def test_digest_ranked_by_effective_weight() -> None:

@@ -181,9 +181,7 @@ class PipelineOrchestrator:
             return None
         allowed = set(evidence_assets)
         filtered = {
-            asset: value
-            for asset, value in result.per_asset_sentiment.items()
-            if asset in allowed
+            asset: value for asset, value in result.per_asset_sentiment.items() if asset in allowed
         }
         return result.model_copy(update={"per_asset_sentiment": filtered})
 
@@ -221,13 +219,7 @@ def _sentiment_map(resp: SentimentResponse | None) -> dict[str, float] | None:
 
 
 def _digest_assets(digest: NewsDigest) -> list[str]:
-    return sorted(
-        {
-            asset
-            for item in digest.items
-            for asset in item.asset_weights
-        }
-    )
+    return sorted({asset for item in digest.items for asset in item.asset_weights})
 
 
 def _state_vector(run: MarketStateRun) -> dict[str, object]:

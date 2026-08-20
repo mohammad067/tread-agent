@@ -134,6 +134,7 @@ class CoinGeckoPriceSource:
             content_hash=content_hash(payload),
         )
 
+
 class CoinGeckoGlobalSource:
     def __init__(self, client: CoinGeckoClient | None = None) -> None:
         self._client = client or CoinGeckoClient()

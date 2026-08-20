@@ -18,9 +18,7 @@ from market_state_engine.core.dtos import RawSnapshot, TotalMcapSample
 from market_state_engine.core.hashing import content_hash
 from market_state_engine.core.run_context import RunContext
 
-_DEFAULT_URL = (
-    "https://pro-api.coinmarketcap.com/public-api/v1/global-metrics/quotes/latest"
-)
+_DEFAULT_URL = "https://pro-api.coinmarketcap.com/public-api/v1/global-metrics/quotes/latest"
 _STALE_AFTER_SECONDS = 15 * 60
 _HISTORY_LIMIT = 130
 _HISTORY_TOLERANCE = timedelta(hours=12)
@@ -79,9 +77,7 @@ class CoinMarketCapGlobalSource:
         quote = _mapping(data.get("quote"), "data.quote")
         usd = _mapping(quote.get("USD"), "data.quote.USD")
 
-        market_cap = _positive_float(
-            usd.get("total_market_cap"), "data.quote.USD.total_market_cap"
-        )
+        market_cap = _positive_float(usd.get("total_market_cap"), "data.quote.USD.total_market_cap")
         dominance = _bounded_float(
             data.get("btc_dominance"),
             "data.btc_dominance",
@@ -263,9 +259,7 @@ def enrich_total_mcap_history(
         )
         if not available
     ]
-    return snapshot.model_copy(
-        update={"payload": payload, "content_hash": content_hash(payload)}
-    )
+    return snapshot.model_copy(update={"payload": payload, "content_hash": content_hash(payload)})
 
 
 def _ordered_samples(

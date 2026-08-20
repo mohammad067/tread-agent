@@ -188,9 +188,7 @@ class MacroEventRow(Base):
     """Idempotent manually submitted macro event retained for audit and replay."""
 
     __tablename__ = "macro_events"
-    __table_args__ = (
-        Index("ix_macro_events_type_scheduled", "event_type", "scheduled_at"),
-    )
+    __table_args__ = (Index("ix_macro_events_type_scheduled", "event_type", "scheduled_at"),)
 
     event_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     event_type: Mapped[str] = mapped_column(String(32))

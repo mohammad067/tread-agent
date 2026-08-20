@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import pytest
 
+from market_state_engine.core.dtos import MacroEvent
+from market_state_engine.core.enums import EventType, TriggerType
 from market_state_engine.evaluation.replay_harness import ReplayHarness
 from market_state_engine.ingestion.real import news_feeds
 from market_state_engine.persistence.repositories import RunRepository
+from tests.integration._harness import build_full_container
 
 from ._m6_harness import REPO, fixed_clock, stored_full_run, stored_stale_news_run
 
@@ -103,3 +106,29 @@ def test_37_hour_news_is_ineligible_in_live_and_replay() -> None:
     assert result.call_verification.compared == 1
     assert result.call_verification.diffs == []
     assert result.reproduced_is_degraded is False
+
+
+def test_event_run_replay_preserves_events_and_trigger_detail() -> None:
+    container = build_full_container()
+    event = MacroEvent(
+        event_id="replay-cpi",
+        event_type=EventType.US_CPI,
+        scheduled_at="2026-07-14T12:30:00Z",
+        consensus=0.3,
+        actual=0.5,
+    )
+    outcome = container.event_trigger.submit(event, raw=event.model_dump(mode="json"))
+    assert outcome.run_id is not None
+
+    harness = ReplayHarness(REPO, fixed_clock)
+    loaded = harness.load(container.database, outcome.run_id)
+    result = harness.replay(loaded)
+
+    assert loaded.trigger_type is TriggerType.EVENT
+    assert loaded.trigger_detail is not None
+    assert loaded.trigger_detail.event_id == "replay-cpi"
+    assert loaded.trigger_detail.debounced_events == 0
+    assert [item.event_id for item in loaded.ingest.events] == ["replay-cpi"]
+    assert result.deterministic_match is True
+    assert result.full_deterministic_match is True
+    assert result.call_records_match is True

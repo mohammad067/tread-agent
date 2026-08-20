@@ -16,7 +16,9 @@ from datetime import datetime
 from enum import Enum
 from threading import Lock
 
+from market_state_engine.core.dtos import MacroEvent
 from market_state_engine.core.enums import RegimeState, TriggerType
+from market_state_engine.core.models import TriggerDetail
 from market_state_engine.core.run_context import RunContext
 
 from .orchestrator import IngestBundle, new_run_id
@@ -65,23 +67,35 @@ class Scheduler:
         mode: ExecutionMode = ExecutionMode.SCHEDULED,
         *,
         run_id: str | None = None,
+        trigger_type: TriggerType | None = None,
+        trigger_detail: TriggerDetail | None = None,
+        events: list[MacroEvent] | None = None,
     ) -> RunSummary:
         """Assign identity + execute one run. Refuses if another run is in flight (overlap)."""
         if not self._lock.acquire(blocking=False):
             raise OverlapError()
         try:
-            trigger_type = (
+            resolved_trigger_type = trigger_type or (
                 TriggerType.EVENT if mode is ExecutionMode.MANUAL else TriggerType.SCHEDULED
             )
             ctx = RunContext(
                 run_id=run_id or new_run_id(),
                 run_sequence=self._seq(),
-                trigger_type=trigger_type,
+                trigger_type=resolved_trigger_type,
+                trigger_detail=trigger_detail,
                 now=self._clock(),
                 previous_state=self._prev(),
                 versions=self._versions,
             )
             ingest = self._ingest(ctx)
+            if events is not None:
+                ingest = IngestBundle(
+                    indicator_snapshots=ingest.indicator_snapshots,
+                    price_snapshots=ingest.price_snapshots,
+                    global_snapshots=ingest.global_snapshots,
+                    events=list(events),
+                    news_items=ingest.news_items,
+                )
             return self._run_service.execute(ctx, ingest)
         finally:
             self._lock.release()
@@ -92,8 +106,39 @@ class Scheduler:
     def run_manual(self, run_id: str | None = None) -> RunSummary:
         return self.trigger(ExecutionMode.MANUAL, run_id=run_id)
 
-    def run_replay(self, run_id: str) -> RunSummary:
-        return self.trigger(ExecutionMode.REPLAY, run_id=run_id)
+    def run_event(
+        self,
+        events: list[MacroEvent],
+        *,
+        event_id: str,
+        debounced_events: int,
+        run_id: str | None = None,
+    ) -> RunSummary:
+        """Run over the exact persisted MacroEvents selected by the Event Trigger."""
+        return self.trigger(
+            ExecutionMode.MANUAL,
+            run_id=run_id,
+            trigger_type=TriggerType.EVENT,
+            trigger_detail=TriggerDetail(
+                event_id=event_id,
+                debounced_events=debounced_events,
+            ),
+            events=events,
+        )
+
+    def run_replay(
+        self,
+        run_id: str,
+        *,
+        trigger_type: TriggerType = TriggerType.SCHEDULED,
+        trigger_detail: TriggerDetail | None = None,
+    ) -> RunSummary:
+        return self.trigger(
+            ExecutionMode.REPLAY,
+            run_id=run_id,
+            trigger_type=trigger_type,
+            trigger_detail=trigger_detail,
+        )
 
 
 def _counter() -> Callable[[], int]:

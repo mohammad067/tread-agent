@@ -9,7 +9,6 @@ fully-wired ``Container`` (DI); it holds no business logic and constructs no mar
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, Header, Request, Response
@@ -21,7 +20,6 @@ from market_state_engine.core.dtos import MacroEvent
 from market_state_engine.persistence.repositories import (
     CallRecordRepository,
     EventLogRepository,
-    MacroEventRepository,
     RunRepository,
 )
 from market_state_engine.pipeline.scheduler import OverlapError
@@ -152,18 +150,13 @@ def create_app(container: Container) -> FastAPI:
                 "invalid macro event",
                 details=exc.errors(include_url=False),
             )
-        # Surprise is computed server-side, never trusted from the client (api-db-fixtures A.3).
-        surprise = event.actual - event.consensus if event.actual is not None else None
-        ingested_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        with container.database.session() as session:
-            row, _created = MacroEventRepository(session).add_if_absent(
-                event,
-                surprise=surprise,
-                raw=dict(body),
-                ingested_at=ingested_at,
-            )
+        result = container.event_trigger.submit(event, raw=dict(body))
         return envelope(
-            {"event_id": row.event_id, "accepted": True, "surprise": row.surprise}
+            {
+                "event_id": result.event_id,
+                "accepted": result.accepted,
+                "surprise": result.surprise,
+            }
         )
 
     @app.post("/v1/runs:trigger")
@@ -215,14 +208,10 @@ def create_app(container: Container) -> FastAPI:
             status_code=404, content=error_body("not_found", message, _corr(request))
         )
 
-    def _invalid(
-        request: Request, message: str, *, details: object | None = None
-    ) -> JSONResponse:
+    def _invalid(request: Request, message: str, *, details: object | None = None) -> JSONResponse:
         return JSONResponse(
             status_code=422,
-            content=error_body(
-                "invalid_request", message, _corr(request), details=details
-            ),
+            content=error_body("invalid_request", message, _corr(request), details=details),
         )
 
     return app

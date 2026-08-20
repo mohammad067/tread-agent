@@ -182,7 +182,6 @@ _MACRO_TOPICS: dict[str, MacroTopic] = {
             "TOTAL_MCAP": 0.90,
         },
     ),
-
     # Inflation affects rate expectations, real yields and global liquidity.
     "US_INFLATION": MacroTopic(
         patterns=(
@@ -206,7 +205,6 @@ _MACRO_TOPICS: dict[str, MacroTopic] = {
             "TOTAL_MCAP": 0.85,
         },
     ),
-
     # US labour-market data influences monetary-policy expectations.
     "US_LABOR_MARKET": MacroTopic(
         patterns=(
@@ -227,7 +225,6 @@ _MACRO_TOPICS: dict[str, MacroTopic] = {
             "TOTAL_MCAP": 0.75,
         },
     ),
-
     # Dollar strength is an important cross-market driver.
     "US_DOLLAR": MacroTopic(
         patterns=(
@@ -262,7 +259,6 @@ _MACRO_TOPICS: dict[str, MacroTopic] = {
             "TOTAL_MCAP": 0.70,
         },
     ),
-
     # Treasury yields / real yields are especially important for gold and
     # liquidity-sensitive assets.
     "US_YIELDS": MacroTopic(
@@ -284,7 +280,6 @@ _MACRO_TOPICS: dict[str, MacroTopic] = {
             "TOTAL_MCAP": 0.70,
         },
     ),
-
     # Oil supply policy is directly important for WTI and can have broader
     # inflation / FX implications.
     "OIL_SUPPLY": MacroTopic(
@@ -305,7 +300,6 @@ _MACRO_TOPICS: dict[str, MacroTopic] = {
             "TOTAL_MCAP": 0.25,
         },
     ),
-
     # Geopolitical events can simultaneously affect energy, safe havens,
     # currencies and risk assets.
     #
@@ -357,11 +351,7 @@ def _clamp(value: float) -> float:
 def _normalize_assets(assets: Iterable[str]) -> set[str]:
     """Normalize asset identifiers."""
 
-    return {
-        asset.strip().upper()
-        for asset in assets
-        if asset and asset.strip()
-    }
+    return {asset.strip().upper() for asset in assets if asset and asset.strip()}
 
 
 def build_evidence_text(item: NewsItem) -> str:
@@ -403,10 +393,7 @@ def _compute_macro_relevance(
 ) -> dict[str, float]:
     """Compute relevance caused by deterministic macro-topic matches."""
 
-    scores: dict[str, float] = {
-        asset: 0.0
-        for asset in target_assets
-    }
+    scores: dict[str, float] = {asset: 0.0 for asset in target_assets}
 
     for topic in _MACRO_TOPICS.values():
         if not any(pattern.search(text) for pattern in topic.patterns):
@@ -473,10 +460,7 @@ def compute_relevance_map(
 
     targets = _normalize_assets(target_assets)
 
-    scores: dict[str, float] = {
-        asset: 0.0
-        for asset in sorted(targets)
-    }
+    scores: dict[str, float] = {asset: 0.0 for asset in sorted(targets)}
 
     if not targets:
         return scores
@@ -541,11 +525,7 @@ def compute_relevance_map(
     if item.relevance is not None:
         upstream = _clamp(item.relevance)
 
-        identified_assets = {
-            asset
-            for asset, relevance in scores.items()
-            if relevance > 0.0
-        }
+        identified_assets = {asset for asset, relevance in scores.items() if relevance > 0.0}
 
         for asset in identified_assets:
             scores[asset] = max(

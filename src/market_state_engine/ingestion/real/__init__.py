@@ -11,6 +11,7 @@ from .coinmarketcap import (
     CoinMarketCapGlobalSource,
     CoinMarketCapSnapshots,
 )
+from .gate import GateClient, GateCryptoPriceSource
 
 __all__ = [
     "CoinGeckoClient",
@@ -19,5 +20,7 @@ __all__ = [
     "CoinMarketCapClient",
     "CoinMarketCapGlobalSource",
     "CoinMarketCapSnapshots",
+    "GateClient",
+    "GateCryptoPriceSource",
     "aggregate_snapshots",
 ]

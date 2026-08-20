@@ -97,9 +97,7 @@ def test_pipeline_publishes_honest_unavailable_prices_without_ingest_snapshots()
     assert run is not None
     assert {asset["symbol"] for asset in run["assets"]} == set(SYMBOLS)
     assert all(asset["price"]["is_stale"] is True for asset in run["assets"])
-    assert all(
-        asset["price"]["stale_reason"] == "price_unavailable" for asset in run["assets"]
-    )
+    assert all(asset["price"]["stale_reason"] == "price_unavailable" for asset in run["assets"])
 
 
 def test_empty_digest_skips_sentiment_but_synthesis_remains_healthy() -> None:
@@ -134,9 +132,7 @@ def test_sentiment_is_limited_to_assets_with_digest_evidence() -> None:
         calls = CallRecordRepository(session).list_for_run(summary.run_id)
 
     assert run is not None
-    sentiments = {
-        asset["symbol"]: asset["scores"]["sentiment"] for asset in run["assets"]
-    }
+    sentiments = {asset["symbol"]: asset["scores"]["sentiment"] for asset in run["assets"]}
     assert sentiments["BTC"] == -0.2
     assert all(sentiments[symbol] is None for symbol in SYMBOLS if symbol != "BTC")
     sentiment_call = next(call for call in calls if call["llm_job"] == "sentiment")

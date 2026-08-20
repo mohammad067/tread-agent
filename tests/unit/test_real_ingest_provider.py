@@ -19,9 +19,7 @@ _SYMBOLS = ("BTC", "ETH", "GOLD", "WTI", "USD_IRR", "TOTAL_MCAP")
 class _LastGoodStore:
     def __init__(self, snapshots: list[RawSnapshot] | None = None) -> None:
         self.snapshots = {
-            snapshot.symbol: snapshot
-            for snapshot in snapshots or []
-            if snapshot.symbol is not None
+            snapshot.symbol: snapshot for snapshot in snapshots or [] if snapshot.symbol is not None
         }
 
     def record(self, snapshot: RawSnapshot) -> None:
@@ -32,9 +30,7 @@ class _LastGoodStore:
         snapshot = self.snapshots.get(symbol)
         if snapshot is None:
             return None
-        return snapshot.model_copy(
-            update={"is_stale": True, "stale_reason": "last_good"}
-        )
+        return snapshot.model_copy(update={"is_stale": True, "stale_reason": "last_good"})
 
 
 class _AssetSource:
@@ -115,9 +111,7 @@ def _snapshot(source_id: str, symbol: str, value: float = 100.0) -> RawSnapshot:
     )
 
 
-def _global_snapshot(
-    field: str, value: float, *, source_id: str = "coinmarketcap"
-) -> RawSnapshot:
+def _global_snapshot(field: str, value: float, *, source_id: str = "coinmarketcap") -> RawSnapshot:
     payload: dict[str, object] = {field: value, "as_of": "2026-08-19T07:59:00Z"}
     return RawSnapshot(
         source_id=source_id,
@@ -142,6 +136,11 @@ def _patch_sources(monkeypatch: pytest.MonkeyPatch, *, failing: bool) -> None:
         provider,
         "KifpoolCryptoPriceSource",
         lambda: _AssetSource({"BTC", "ETH"}, "kifpool", failing=failing),
+    )
+    monkeypatch.setattr(
+        provider,
+        "GateCryptoPriceSource",
+        lambda: _AssetSource({"BTC", "ETH"}, "gate", failing=failing),
     )
     monkeypatch.setattr(
         provider,
@@ -191,9 +190,7 @@ def test_live_failure_uses_stale_last_good_without_mock(
     assert set(bundle.price_snapshots) == set(_SYMBOLS)
     assert all(snapshot.source_id != "mock" for snapshot in bundle.price_snapshots.values())
     assert all(snapshot.is_stale for snapshot in bundle.price_snapshots.values())
-    assert all(
-        snapshot.stale_reason == "last_good" for snapshot in bundle.price_snapshots.values()
-    )
+    assert all(snapshot.stale_reason == "last_good" for snapshot in bundle.price_snapshots.values())
     fallback_fear_greed = bundle.global_snapshots["fear_greed"]
     assert fallback_fear_greed.symbol is None
     assert fallback_fear_greed.is_stale is True
@@ -205,9 +202,7 @@ def test_live_failure_without_last_good_emits_no_mock_snapshot(
 ) -> None:
     _patch_sources(monkeypatch, failing=True)
 
-    bundle = provider.real_ingest_provider(
-        _ctx(), last_good_store=_LastGoodStore()
-    )
+    bundle = provider.real_ingest_provider(_ctx(), last_good_store=_LastGoodStore())
 
     assert bundle.price_snapshots == {}
     assert bundle.indicator_snapshots == {}

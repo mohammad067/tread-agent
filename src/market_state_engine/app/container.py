@@ -19,6 +19,7 @@ from market_state_engine.observability.metrics import Metrics
 from market_state_engine.persistence.migrations import upgrade_or_baseline
 from market_state_engine.persistence.repositories import RunRepository
 from market_state_engine.persistence.session import Database, build_engine, resolve_url
+from market_state_engine.pipeline.event_trigger import EventTrigger
 from market_state_engine.pipeline.orchestrator import IngestBundle, PipelineOrchestrator
 from market_state_engine.pipeline.runner import RunService
 from market_state_engine.pipeline.scheduler import Scheduler
@@ -51,6 +52,7 @@ class Container:
         metrics: Metrics,
         rulebook_version: str,
         pipeline_version: str,
+        event_trigger: EventTrigger,
     ) -> None:
         self.config = config
         self.database = database
@@ -61,6 +63,7 @@ class Container:
         self.metrics = metrics
         self.rulebook_version = rulebook_version
         self.pipeline_version = pipeline_version
+        self.event_trigger = event_trigger
 
 
 def build_container(
@@ -124,9 +127,7 @@ def build_container(
     if (ingest_provider is None) == (ingest_provider_factory is None):
         raise ValueError("provide exactly one of ingest_provider or ingest_provider_factory")
     resolved_ingest = (
-        ingest_provider
-        if ingest_provider is not None
-        else ingest_provider_factory(database)  # type: ignore[misc]
+        ingest_provider if ingest_provider is not None else ingest_provider_factory(database)  # type: ignore[misc]
     )
 
     def _next_run_sequence() -> int:
@@ -141,6 +142,12 @@ def build_container(
         previous_state_provider=previous_state_provider,
         versions={"pipeline": _PIPELINE_VERSION, "rulebook": rulebook_version},
     )
+    event_trigger = EventTrigger(
+        database,
+        scheduler,
+        clock,
+        cooldown_minutes=env_cfg.scheduler.event_cooldown_minutes,
+    )
     return Container(
         config=config,
         database=database,
@@ -151,4 +158,5 @@ def build_container(
         metrics=Metrics(),
         rulebook_version=rulebook_version,
         pipeline_version=_PIPELINE_VERSION,
+        event_trigger=event_trigger,
     )

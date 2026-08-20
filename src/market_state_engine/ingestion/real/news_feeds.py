@@ -239,13 +239,7 @@ def _fetch(
     req = urllib.request.Request(
         url,
         headers={
-            "Accept": (
-                "application/rss+xml, "
-                "application/atom+xml, "
-                "application/xml, "
-                "text/xml, "
-                "*/*"
-            ),
+            "Accept": ("application/rss+xml, application/atom+xml, application/xml, text/xml, */*"),
             "User-Agent": "mse/0.1 (market-state-engine; research)",
         },
     )
@@ -347,20 +341,13 @@ def _merge_duplicate(existing: NewsItem, incoming: NewsItem) -> NewsItem:
     copy would lose the second feed's trusted asset context.
     """
 
-    merged_tags = sorted(
-        set(existing.asset_tags or [])
-        | set(incoming.asset_tags or [])
-    )
+    merged_tags = sorted(set(existing.asset_tags or []) | set(incoming.asset_tags or []))
 
     # Prefer the richer body, if one feed supplied more content.
     existing_body = existing.body or ""
     incoming_body = incoming.body or ""
 
-    body = (
-        incoming.body
-        if len(incoming_body) > len(existing_body)
-        else existing.body
-    )
+    body = incoming.body if len(incoming_body) > len(existing_body) else existing.body
 
     # Prefer the earliest published timestamp if duplicated feeds disagree.
     published_at = min(
@@ -395,11 +382,7 @@ class RssNewsSource:
         if max_items is not None and max_items < 0:
             raise ValueError("max_items must be >= 0")
 
-        self._feeds = (
-            list(feeds)
-            if feeds is not None
-            else list(_FEEDS)
-        )
+        self._feeds = list(feeds) if feeds is not None else list(_FEEDS)
         self._max_items = max_items
 
     def fetch_items(self, ctx: RunContext) -> list[NewsItem]:

@@ -101,8 +101,7 @@ class FeatureEngine:
         explicit_changes = payload.get("horizon_changes")
         if isinstance(explicit_changes, dict):
             change_values = {
-                horizon: _optional_float(explicit_changes.get(horizon))
-                for horizon in _HORIZON_BARS
+                horizon: _optional_float(explicit_changes.get(horizon)) for horizon in _HORIZON_BARS
             }
         else:
             change_values = {

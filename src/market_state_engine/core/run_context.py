@@ -12,6 +12,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 from .enums import RegimeState, TriggerType
+from .models import TriggerDetail
 
 
 # غیرقابل تغییر بعد ساخت
@@ -21,6 +22,7 @@ class RunContext(BaseModel):
     run_id: str
     run_sequence: int
     trigger_type: TriggerType
+    trigger_detail: TriggerDetail | None = None
     # Injected wall-clock for this run; all time-relative math uses this, never datetime.now().
     now: datetime
     previous_state: RegimeState | None = None

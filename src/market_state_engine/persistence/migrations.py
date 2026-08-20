@@ -102,9 +102,7 @@ def schema_differences(connection: Connection) -> list[str]:
         expected_pk = tuple(column.name for column in expected_table.primary_key.columns)
         actual_pk = tuple(inspector.get_pk_constraint(table_name).get("constrained_columns") or ())
         if actual_pk != expected_pk:
-            differences.append(
-                f"{table_name}: primary key expected {expected_pk}, got {actual_pk}"
-            )
+            differences.append(f"{table_name}: primary key expected {expected_pk}, got {actual_pk}")
 
         expected_indexes = {
             str(index.name): (tuple(column.name for column in index.columns), bool(index.unique))

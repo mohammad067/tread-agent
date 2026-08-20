@@ -1,7 +1,7 @@
 """IngestBundle: multi-source live ingest + persisted last-good fallback.
 
 MSE_INGEST=real flow:
-  1) BTC/ETH ← CoinGecko series + Kifpool spot USD → aggregate
+  1) BTC/ETH ← CoinGecko + Kifpool + Gate spot observations → aggregate
   2) GOLD ← CoinGecko pax-gold
   3) USD_IRR ← Kifpool live + TGJU daily history (IRT)
   4) dominance / mcap (global) ← CoinMarketCap keyless global metrics
@@ -32,6 +32,7 @@ from .coinmarketcap import (
 )
 from .cpi_event import load_us_cpi_event
 from .fear_greed import FearGreedSource
+from .gate import GateCryptoPriceSource
 from .kifpool_crypto import KifpoolCryptoPriceSource
 from .news_feeds import RssNewsSource
 from .tgju_dollar import HybridUsdIrrSource
@@ -82,6 +83,7 @@ def real_ingest_provider(
     cg_price = CoinGeckoPriceSource(client)
     coinmarketcap = CoinMarketCapGlobalSource()
     kp_crypto = KifpoolCryptoPriceSource()
+    gate_crypto = GateCryptoPriceSource()
     usd_src = HybridUsdIrrSource()
     wti_src = TgjuOilSource()
     fng = FearGreedSource()
@@ -125,17 +127,19 @@ def real_ingest_provider(
                     snaps.append(cg_price.fetch_series(sym, ctx))
                     _log.info("crypto_src_ok symbol=%s source=coingecko", sym)
                 except Exception as exc:
-                    _log.warning(
-                        "crypto_src_fail symbol=%s source=coingecko err=%s", sym, exc
-                    )
+                    _log.warning("crypto_src_fail symbol=%s source=coingecko err=%s", sym, exc)
             if kp_crypto.supports(sym):
                 try:
                     snaps.append(kp_crypto.fetch_series(sym, ctx))
                     _log.info("crypto_src_ok symbol=%s source=kifpool", sym)
                 except Exception as exc:
-                    _log.warning(
-                        "crypto_src_fail symbol=%s source=kifpool err=%s", sym, exc
-                    )
+                    _log.warning("crypto_src_fail symbol=%s source=kifpool err=%s", sym, exc)
+            if gate_crypto.supports(sym):
+                try:
+                    snaps.append(gate_crypto.fetch_series(sym, ctx))
+                    _log.info("crypto_src_ok symbol=%s source=gate", sym)
+                except Exception as exc:
+                    _log.warning("crypto_src_fail symbol=%s source=gate err=%s", sym, exc)
 
             if snaps:
                 merged = aggregate_snapshots(
@@ -160,9 +164,7 @@ def real_ingest_provider(
                 indicator_snapshots[sym] = last_good
                 price_snapshots[sym] = last_good
                 continue
-            _log.warning(
-                "real_price_unavailable symbol=%s (no live or last-good source)", sym
-            )
+            _log.warning("real_price_unavailable symbol=%s (no live or last-good source)", sym)
             continue
 
         # --- GOLD ---
@@ -175,9 +177,7 @@ def real_ingest_provider(
                         _record_last_good(last_good_store, merged)
                         indicator_snapshots[sym] = merged
                         price_snapshots[sym] = merged
-                        _log.info(
-                            "real_price_ok symbol=%s source=%s", sym, merged.source_id
-                        )
+                        _log.info("real_price_ok symbol=%s source=%s", sym, merged.source_id)
                         continue
                 except Exception as exc:
                     _log.warning("real_gold_unavailable err=%s", exc)
@@ -272,9 +272,7 @@ def real_ingest_provider(
         _log.info("real_fear_greed_ok")
     except Exception as exc:
         _log.warning("real_fear_greed_unavailable err=%s", exc)
-        last_good_fear_greed = _load_last_good(
-            last_good_store, _FEAR_GREED_LAST_GOOD_KEY
-        )
+        last_good_fear_greed = _load_last_good(last_good_store, _FEAR_GREED_LAST_GOOD_KEY)
         if last_good_fear_greed is not None:
             global_snapshots["fear_greed"] = last_good_fear_greed.model_copy(
                 update={"symbol": None}
@@ -310,9 +308,7 @@ def real_ingest_provider(
     )
 
 
-def _record_last_good(
-    store: LastGoodSnapshotStore | None, snapshot: RawSnapshot
-) -> None:
+def _record_last_good(store: LastGoodSnapshotStore | None, snapshot: RawSnapshot) -> None:
     if store is None:
         return
     try:
@@ -326,9 +322,7 @@ def _record_last_good(
         )
 
 
-def _load_last_good(
-    store: LastGoodSnapshotStore | None, symbol: str
-) -> RawSnapshot | None:
+def _load_last_good(store: LastGoodSnapshotStore | None, symbol: str) -> RawSnapshot | None:
     if store is None:
         return None
     try:
@@ -337,7 +331,5 @@ def _load_last_good(
         _log.warning("last_good_load_failed symbol=%s err=%s", symbol, exc)
         return None
     if snapshot is not None:
-        _log.warning(
-            "last_good_used symbol=%s source=%s", symbol, snapshot.source_id
-        )
+        _log.warning("last_good_used symbol=%s source=%s", symbol, snapshot.source_id)
     return snapshot

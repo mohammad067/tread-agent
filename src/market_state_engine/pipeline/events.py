@@ -25,6 +25,10 @@ class EventType(str, Enum):
     PROVIDER_CALL = "provider_call"
     REPLAY = "replay"
     SCHEDULER = "scheduler"
+    EVENT_ACCEPTED = "event_accepted"
+    EVENT_DEBOUNCED = "event_debounced"
+    EVENT_TRIGGERED = "event_triggered"
+    EVENT_FAILED = "event_failed"
 
 
 class EventRecorder:

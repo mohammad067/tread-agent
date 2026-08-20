@@ -23,9 +23,7 @@ class _Store:
     def get(self, symbol: str) -> RawSnapshot | None:
         if self.snapshot is None or self.snapshot.symbol != symbol:
             return None
-        return self.snapshot.model_copy(
-            update={"is_stale": True, "stale_reason": "last_good"}
-        )
+        return self.snapshot.model_copy(update={"is_stale": True, "stale_reason": "last_good"})
 
 
 def _live() -> RawSnapshot:

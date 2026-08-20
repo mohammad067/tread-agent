@@ -199,6 +199,14 @@ class EventLogRepository:
         )
         return list(self._s.execute(stmt).scalars().all())
 
+    def list_by_type(self, event_type: str) -> list[EventLogRow]:
+        stmt = (
+            select(EventLogRow)
+            .where(EventLogRow.event_type == event_type)
+            .order_by(EventLogRow.event_seq)
+        )
+        return list(self._s.execute(stmt).scalars().all())
+
     def count(self) -> int:
         return len(list(self._s.execute(select(EventLogRow.event_seq)).scalars().all()))
 
@@ -401,9 +409,7 @@ class LastGoodSnapshotRepository:
             as_of=row.as_of,
             is_stale=True,
             stale_reason="last_good",
-            deviation_flags=[
-                dict(cast(dict[str, object], flag)) for flag in row.deviation_flags
-            ],
+            deviation_flags=[dict(cast(dict[str, object], flag)) for flag in row.deviation_flags],
             content_hash=row.content_hash,
         )
 

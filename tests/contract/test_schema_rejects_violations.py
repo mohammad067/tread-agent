@@ -123,9 +123,7 @@ def test_news_digest_v2_rejects_legacy_scalar_item(make_validator: Any) -> None:
 
 
 @pytest.mark.contract
-def test_news_digest_v3_requires_evidence_text(
-    load_golden_json: Any, make_validator: Any
-) -> None:
+def test_news_digest_v3_requires_evidence_text(load_golden_json: Any, make_validator: Any) -> None:
     validator = make_validator("news_digest.v3.json")
     request = copy.deepcopy(load_golden_json("reasoning_request.sentiment.json"))
     digest = request["payload"]["news_digest"]

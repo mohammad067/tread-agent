@@ -70,6 +70,7 @@ def test_dev_asgi_bootstrap_accepts_explicit_modes_from_another_cwd(
     mode: str, tmp_path: Path
 ) -> None:
     environment = os.environ.copy()
+    _remove_parent_coverage_environment(environment)
     environment.update(
         {
             "MSE_ENV": "dev",
@@ -101,6 +102,7 @@ def test_prod_asgi_bootstrap_fails_fast_before_database_setup(
     mode: str, message: str, tmp_path: Path
 ) -> None:
     environment = os.environ.copy()
+    _remove_parent_coverage_environment(environment)
     environment.update({"MSE_ENV": "prod", "MSE_INGEST": mode})
     environment.pop("DB_DSN", None)
 
@@ -116,3 +118,10 @@ def test_prod_asgi_bootstrap_fails_fast_before_database_setup(
     assert result.returncode != 0
     assert message in result.stderr
     assert "DB_DSN" not in result.stderr
+
+
+def _remove_parent_coverage_environment(environment: dict[str, str]) -> None:
+    """Keep ASGI bootstrap subprocesses from writing incompatible pytest-cov data files."""
+    for name in list(environment):
+        if name.startswith("COV_CORE_"):
+            environment.pop(name)

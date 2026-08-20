@@ -164,9 +164,7 @@ def test_duplicate_macro_event_is_idempotent_and_does_not_overwrite(
         "consensus": 0.3,
         "actual": 0.4,
     }
-    first = client.post(
-        "/v1/events", json=original, headers={"x-api-key": "write-key"}
-    )
+    first = client.post("/v1/events", json=original, headers={"x-api-key": "write-key"})
     duplicate = client.post(
         "/v1/events",
         json={**original, "actual": 9.0},
@@ -213,9 +211,7 @@ def test_invalid_macro_event_is_rejected(
     c = build_full_container()
     client = TestClient(create_app(c))
 
-    response = client.post(
-        "/v1/events", json=payload, headers={"x-api-key": "write-key"}
-    )
+    response = client.post("/v1/events", json=payload, headers={"x-api-key": "write-key"})
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "invalid_request"

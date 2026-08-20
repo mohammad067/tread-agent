@@ -86,9 +86,7 @@ class NewsWeigher:
         default = float(table.get("default", 12.0))
 
         if default <= 0:
-            raise ValueError(
-                f"default news half-life must be positive: {default!r}"
-            )
+            raise ValueError(f"default news half-life must be positive: {default!r}")
 
         return default
 
@@ -98,11 +96,7 @@ class NewsWeigher:
     ) -> set[str]:
         """Normalize target symbols before relevance/weight calculation."""
 
-        return {
-            asset.strip().upper()
-            for asset in target_assets
-            if asset and asset.strip()
-        }
+        return {asset.strip().upper() for asset in target_assets if asset and asset.strip()}
 
     @staticmethod
     def _effective_weight(
@@ -112,11 +106,7 @@ class NewsWeigher:
     ) -> float:
         """Compute one deterministic effective weight."""
 
-        value = (
-            float(source_quality)
-            * float(relevance)
-            * float(decay)
-        )
+        value = float(source_quality) * float(relevance) * float(decay)
 
         return max(0.0, min(1.0, value))
 
@@ -264,10 +254,7 @@ class NewsWeigher:
             # No sentiment, bullish/bearish direction, keyword heuristics or
             # LLM judgment is allowed in this layer.
             # -----------------------------------------------------------------
-            max_effective_weight = max(
-                weight.effective_weight
-                for weight in asset_weights.values()
-            )
+            max_effective_weight = max(weight.effective_weight for weight in asset_weights.values())
 
             weighted.append(
                 WeightedNewsItem(

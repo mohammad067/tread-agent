@@ -22,8 +22,9 @@ from pathlib import Path
 
 from market_state_engine.app.container import build_container
 from market_state_engine.core.dtos import MacroEvent, NewsItem, RawSnapshot
-from market_state_engine.core.enums import RegimeState
+from market_state_engine.core.enums import RegimeState, TriggerType
 from market_state_engine.core.hashing import content_hash
+from market_state_engine.core.models import TriggerDetail
 from market_state_engine.persistence.repositories import CallRecordRepository, RunRepository
 from market_state_engine.persistence.session import Database
 from market_state_engine.pipeline.orchestrator import IngestBundle
@@ -60,6 +61,8 @@ class LoadedRun:
     call_records: list[CallRecord]
     stored_output: dict[str, object]
     previous_state: RegimeState | None = field(default=None)
+    trigger_type: TriggerType = field(default=TriggerType.SCHEDULED)
+    trigger_detail: TriggerDetail | None = field(default=None)
 
 
 class ReplayHarness:
@@ -78,7 +81,15 @@ class ReplayHarness:
         ingest = _rebuild_ingest(dict(inputs.raw_snapshots))
         records = [CallRecord.model_validate(r) for r in raw_calls]
         prev = _previous_state(stored_output)
-        return LoadedRun(run_id, ingest, records, stored_output, prev)
+        return LoadedRun(
+            run_id,
+            ingest,
+            records,
+            stored_output,
+            prev,
+            TriggerType(str(stored_output["trigger_type"])),
+            TriggerDetail.model_validate(stored_output["trigger_detail"]),
+        )
 
     # --- execution (offline, ReplayProvider only) ---------------------------------------
     def replay(self, loaded: LoadedRun) -> ReplayResult:
@@ -96,7 +107,11 @@ class ReplayHarness:
         )
         # Capture the replay run's Call Records from the gateway sink.
         sink = container.call_record_sink
-        summary = container.scheduler.run_replay(loaded.run_id)
+        summary = container.scheduler.run_replay(
+            loaded.run_id,
+            trigger_type=loaded.trigger_type,
+            trigger_detail=loaded.trigger_detail,
+        )
 
         with container.database.session() as session:
             replayed_output = RunRepository(session).get(summary.run_id)
