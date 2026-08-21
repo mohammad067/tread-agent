@@ -20,6 +20,7 @@ from market_state_engine.api.app import create_app
 from market_state_engine.app.container import Container, build_container
 from market_state_engine.app.environment import load_root_dotenv, resolve_ingest_mode
 from market_state_engine.app.ingest import mock_ingest_provider
+from market_state_engine.config.loader import ConfigBundle
 from market_state_engine.core.run_context import RunContext
 from market_state_engine.observability.logging import configure_logging
 from market_state_engine.persistence.session import Database
@@ -32,7 +33,9 @@ _ROOT = Path(__file__).resolve().parents[3]
 load_root_dotenv(_ROOT)
 
 
-def _build_real_ingest(database: Database) -> Callable[[RunContext], IngestBundle]:
+def _build_real_ingest(
+    database: Database, config: ConfigBundle
+) -> Callable[[RunContext], IngestBundle]:
     from market_state_engine.ingestion.real.provider import build_real_ingest_provider
     from market_state_engine.persistence.last_good import SqlLastGoodSnapshotStore
     from market_state_engine.persistence.total_mcap_history import SqlTotalMcapHistoryStore
@@ -40,6 +43,7 @@ def _build_real_ingest(database: Database) -> Callable[[RunContext], IngestBundl
     return build_real_ingest_provider(
         SqlTotalMcapHistoryStore(database),
         SqlLastGoodSnapshotStore(database),
+        config,
     )
 
 

@@ -11,7 +11,6 @@ import json
 import logging
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
 from typing import Any
 
 from market_state_engine.core.dtos import RawSnapshot
@@ -22,7 +21,6 @@ _log = logging.getLogger("ingestion.real.kifpool_crypto")
 
 _BASE = "https://api.kifpool.app/api/spot/price"
 _SYMBOLS = {"BTC": "BTC", "ETH": "ETH"}
-_TARGET_BARS = 130
 
 
 class KifpoolCryptoClient:
@@ -53,30 +51,19 @@ class KifpoolCryptoClient:
         return row
 
 
-def _payload_from_row(row: dict[str, Any]) -> dict[str, Any]:
-    # قیمت دلاری صرافی/کیف‌پول
+def _payload_from_row(row: dict[str, Any], as_of: str) -> dict[str, Any]:
+    """Normalize Kifpool's current price field without inventing history."""
     price = float(row["price"])
     if price <= 0:
         raise RuntimeError(f"Kifpool invalid USD price={row.get('price')!r}")
 
-    high = float(row.get("high") or price)
-    low = float(row.get("low") or price)
-    as_of = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    # بدون OHLCV تاریخی: سری نزدیک به اسپات (RSI ضعیف؛ قیمت زنده OK)
-    closes = [price] * _TARGET_BARS
-    highs = [max(price, high)] * _TARGET_BARS
-    lows = [min(price, low)] * _TARGET_BARS
-    volumes = [float(row.get("volume") or 0.0)] * _TARGET_BARS
-
     return {
         "as_of": as_of,
         "value": price,
-        "closes": closes,
-        "highs": highs,
-        "lows": lows,
-        "volumes": volumes,
         "currency": "USD",
+        "source_quote_currency": "USD",
+        "source_price_field": "price",
+        "source_quote_method": "provider_price_field_unspecified",
         "price_change_percent": row.get("priceChangePercent"),
     }
 
@@ -89,15 +76,13 @@ class KifpoolCryptoPriceSource:
         return symbol.upper() in _SYMBOLS
 
     def fetch(self, symbol: str, ctx: RunContext) -> RawSnapshot:
-        return self.fetch_series(symbol, ctx)
-
-    def fetch_series(self, symbol: str, ctx: RunContext) -> RawSnapshot:
         sym = symbol.upper()
         api_sym = _SYMBOLS.get(sym)
         if api_sym is None:
             raise KeyError(f"Kifpool crypto only BTC/ETH, got {symbol!r}")
         row = self._client.fetch_symbol(api_sym)
-        payload = _payload_from_row(row)
+        as_of = ctx.now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        payload = _payload_from_row(row, as_of)
         _log.info(
             "kifpool_crypto_ok symbol=%s price_usd=%s",
             sym,
@@ -107,9 +92,13 @@ class KifpoolCryptoPriceSource:
             source_id="kifpool",
             symbol=sym,
             payload=payload,
-            as_of=str(payload["as_of"]),
+            as_of=as_of,
             is_stale=False,
             stale_reason=None,
             deviation_flags=[],
             content_hash=content_hash(payload),
         )
+
+    def fetch_series(self, symbol: str, ctx: RunContext) -> RawSnapshot:
+        """Compatibility alias returning spot-only data, never synthetic bars."""
+        return self.fetch(symbol, ctx)

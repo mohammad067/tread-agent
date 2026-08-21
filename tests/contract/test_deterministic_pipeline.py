@@ -68,6 +68,12 @@ def _run_pipeline() -> MarketStateRun:
     price_src = MockPriceSource(series)
     ind_snaps = {s: ind_src.fetch_series(s, ctx) for s in ALL_SYMBOLS}
     price_snaps = {s: price_src.fetch(s, ctx) for s in ALL_SYMBOLS}
+    for symbol in ("BTC", "ETH"):
+        snapshot = price_snaps[symbol]
+        payload = {**snapshot.payload, "venue_aggregation": "median_3"}
+        price_snaps[symbol] = snapshot.model_copy(
+            update={"payload": payload, "content_hash": content_hash(payload)}
+        )
     global_snaps = {
         "fear_greed": MockFearGreedSource(24, "2026-07-14T12:45:00Z").fetch(ctx),
         "dominance": MockDominanceSource(56.8, "2026-07-14T12:45:00Z").fetch(ctx),
@@ -151,3 +157,10 @@ def test_usd_irr_is_irt_and_low_sensitivity() -> None:
     usd = next(a for a in run["assets"] if a["symbol"] == "USD_IRR")
     assert usd["price"]["currency"] == "IRT"
     assert usd["regime_sensitivity"] == "low"
+
+
+@pytest.mark.contract
+def test_crypto_venue_aggregation_is_exposed_without_schema_change() -> None:
+    run = _run_pipeline().to_contract_dict()
+    crypto = [asset for asset in run["assets"] if asset["symbol"] in {"BTC", "ETH"}]
+    assert {asset["price"]["venue_aggregation"] for asset in crypto} == {"median_3"}

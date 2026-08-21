@@ -30,3 +30,25 @@ meaning depending on whether stablecoins are in the denominator.
 - (+) Robust prices; divergence surfaced not hidden; dominance is reproducible; USD/IRR honestly labeled.
 - (−) Requires ≥ `min_sources` venues to aggregate; if too few, the price is marked stale/gapped rather than
   fabricated — accepted (degrade-not-fail).
+
+## Addendum — BTC/ETH availability policy (2026-08-21)
+
+This addendum narrows the operational policy without replacing the accepted decision above.
+
+- BTC and ETH have three configured observations: CoinGecko, Kifpool, and Gate. No source is
+  preferred or primary for the published spot price.
+- The target is three fresh, valid observations and the configured minimum is two. Three sources
+  produce `median_3`. Two sources produce `median_2` only when their pairwise deviation is within
+  the asset's configured `max_deviation_pct`; `reduced_source_count` is then recorded.
+- One source is insufficient. Zero or one valid source, or two disagreeing sources, use persisted
+  last-good data; without last-good, the price remains honestly unavailable. No mock is permitted.
+- Gate observes `BTC_USDT` / `ETH_USDT`. Its source pair and USDT quote are retained in internal
+  observation metadata while the existing public BTC/ETH contract remains USD. This is nominal
+  USD-equivalent normalization, not a claim that Gate supplied direct fiat USD.
+- Every successful aggregate stores deterministically ordered source observations and hashes in
+  `run_inputs`. Only a successful median becomes the next last-good snapshot.
+- Spot aggregation and indicator history are separate: Gate's real six-hour series is preferred
+  for indicator capability, with CoinGecko history as fallback. Kifpool is spot-only and must not
+  fabricate repeated historical bars. This history capability order is not spot-price preference.
+
+Implementation/replay policy version: `adr-009/2`; pipeline release: `1.2.0`.

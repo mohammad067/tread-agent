@@ -1,7 +1,7 @@
 """IngestBundle: multi-source live ingest + persisted last-good fallback.
 
 MSE_INGEST=real flow:
-  1) BTC/ETH ← CoinGecko + Kifpool + Gate spot observations → aggregate
+  1) BTC/ETH spot ← median(CoinGecko, Kifpool, Gate); indicators ← Gate then CoinGecko
   2) GOLD ← CoinGecko pax-gold
   3) USD_IRR ← Kifpool live + TGJU daily history (IRT)
   4) dominance / mcap (global) ← CoinMarketCap keyless global metrics
@@ -19,6 +19,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
+from market_state_engine.config.loader import ConfigBundle
 from market_state_engine.core.dtos import MacroEvent, RawSnapshot, TotalMcapSample
 from market_state_engine.core.run_context import RunContext
 from market_state_engine.pipeline.orchestrator import IngestBundle
@@ -43,6 +44,7 @@ _log = logging.getLogger("ingestion.real")
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
 _CRYPTO_SYMBOLS = ("BTC", "ETH")
+_CRYPTO_SOURCE_IDS = ("coingecko", "gate", "kifpool")
 _ALL_SYMBOLS = ("BTC", "ETH", "GOLD", "WTI", "USD_IRR", "TOTAL_MCAP")
 _FEAR_GREED_LAST_GOOD_KEY = "FEAR_GREED"
 
@@ -62,10 +64,12 @@ class LastGoodSnapshotStore(Protocol):
 def build_real_ingest_provider(
     history_store: TotalMcapHistoryStore,
     last_good_store: LastGoodSnapshotStore,
+    config: ConfigBundle,
 ) -> Callable[[RunContext], IngestBundle]:
     def _ingest(ctx: RunContext) -> IngestBundle:
         return real_ingest_provider(
             ctx,
+            config=config,
             history_store=history_store,
             last_good_store=last_good_store,
         )
@@ -76,6 +80,7 @@ def build_real_ingest_provider(
 def real_ingest_provider(
     ctx: RunContext,
     *,
+    config: ConfigBundle,
     history_store: TotalMcapHistoryStore | None = None,
     last_good_store: LastGoodSnapshotStore | None = None,
 ) -> IngestBundle:
@@ -121,47 +126,62 @@ def real_ingest_provider(
     for sym in _ALL_SYMBOLS:
         # --- BTC / ETH ---
         if sym in _CRYPTO_SYMBOLS:
-            snaps: list[RawSnapshot] = []
+            source_snapshots: dict[str, RawSnapshot] = {}
             if cg_price.supports(sym):
                 try:
-                    snaps.append(cg_price.fetch_series(sym, ctx))
+                    source_snapshots["coingecko"] = cg_price.fetch_series(sym, ctx)
                     _log.info("crypto_src_ok symbol=%s source=coingecko", sym)
                 except Exception as exc:
                     _log.warning("crypto_src_fail symbol=%s source=coingecko err=%s", sym, exc)
             if kp_crypto.supports(sym):
                 try:
-                    snaps.append(kp_crypto.fetch_series(sym, ctx))
+                    source_snapshots["kifpool"] = kp_crypto.fetch(sym, ctx)
                     _log.info("crypto_src_ok symbol=%s source=kifpool", sym)
                 except Exception as exc:
                     _log.warning("crypto_src_fail symbol=%s source=kifpool err=%s", sym, exc)
             if gate_crypto.supports(sym):
                 try:
-                    snaps.append(gate_crypto.fetch_series(sym, ctx))
+                    source_snapshots["gate"] = gate_crypto.fetch_series(sym, ctx)
                     _log.info("crypto_src_ok symbol=%s source=gate", sym)
                 except Exception as exc:
                     _log.warning("crypto_src_fail symbol=%s source=gate err=%s", sym, exc)
 
-            if snaps:
-                merged = aggregate_snapshots(
-                    snaps,
-                    prefer_source_id="coingecko",
-                    max_deviation_pct=2.0,
+            indicator = _select_crypto_indicator(source_snapshots)
+            if indicator is not None:
+                indicator_snapshots[sym] = indicator
+
+            asset_config = config.assets[sym]
+            price_policy = asset_config.price_sources
+            if price_policy is None or price_policy.aggregation != "median":
+                raise RuntimeError(f"{sym} requires median price_sources configuration")
+            merged = aggregate_snapshots(
+                list(source_snapshots.values()),
+                expected_symbol=sym,
+                min_sources=price_policy.min_sources,
+                configured_source_ids=_CRYPTO_SOURCE_IDS,
+                max_deviation_pct=price_policy.max_deviation_pct,
+                now=ctx.now,
+                staleness_threshold_minutes=asset_config.staleness_threshold_minutes,
+            )
+            if merged is not None:
+                _record_last_good(last_good_store, merged)
+                price_snapshots[sym] = merged
+                _log.info(
+                    "real_price_ok symbol=%s source=%s n_sources=%s flags=%s",
+                    sym,
+                    merged.source_id,
+                    len(source_snapshots),
+                    merged.deviation_flags,
                 )
-                if merged is not None:
-                    _record_last_good(last_good_store, merged)
-                    indicator_snapshots[sym] = merged
-                    price_snapshots[sym] = merged
-                    _log.info(
-                        "real_price_ok symbol=%s source=%s n_sources=%s flags=%s",
-                        sym,
-                        merged.source_id,
-                        len(snaps),
-                        merged.deviation_flags,
-                    )
-                    continue
+                continue
+            _log.warning(
+                "crypto_aggregation_unavailable symbol=%s valid_fetches=%s min_sources=%s",
+                sym,
+                len(source_snapshots),
+                price_policy.min_sources,
+            )
             last_good = _load_last_good(last_good_store, sym)
             if last_good is not None:
-                indicator_snapshots[sym] = last_good
                 price_snapshots[sym] = last_good
                 continue
             _log.warning("real_price_unavailable symbol=%s (no live or last-good source)", sym)
@@ -172,13 +192,11 @@ def real_ingest_provider(
             if cg_price.supports(sym):
                 try:
                     live = cg_price.fetch_series(sym, ctx)
-                    merged = aggregate_snapshots([live], prefer_source_id="coingecko")
-                    if merged is not None:
-                        _record_last_good(last_good_store, merged)
-                        indicator_snapshots[sym] = merged
-                        price_snapshots[sym] = merged
-                        _log.info("real_price_ok symbol=%s source=%s", sym, merged.source_id)
-                        continue
+                    _record_last_good(last_good_store, live)
+                    indicator_snapshots[sym] = live
+                    price_snapshots[sym] = live
+                    _log.info("real_price_ok symbol=%s source=%s", sym, live.source_id)
+                    continue
                 except Exception as exc:
                     _log.warning("real_gold_unavailable err=%s", exc)
             last_good = _load_last_good(last_good_store, sym)
@@ -194,18 +212,16 @@ def real_ingest_provider(
             if wti_src.supports(sym):
                 try:
                     live = wti_src.fetch_series(sym, ctx)
-                    merged = aggregate_snapshots([live], prefer_source_id="tgju")
-                    if merged is not None:
-                        _record_last_good(last_good_store, merged)
-                        indicator_snapshots[sym] = merged
-                        price_snapshots[sym] = merged
-                        _log.info(
-                            "real_price_ok symbol=%s source=%s stale=%s",
-                            sym,
-                            merged.source_id,
-                            merged.is_stale,
-                        )
-                        continue
+                    _record_last_good(last_good_store, live)
+                    indicator_snapshots[sym] = live
+                    price_snapshots[sym] = live
+                    _log.info(
+                        "real_price_ok symbol=%s source=%s stale=%s",
+                        sym,
+                        live.source_id,
+                        live.is_stale,
+                    )
+                    continue
                 except Exception as exc:
                     _log.warning("real_wti_unavailable err=%s", exc)
             last_good = _load_last_good(last_good_store, sym)
@@ -306,6 +322,20 @@ def real_ingest_provider(
         events=events,
         news_items=news_items,
     )
+
+
+def _select_crypto_indicator(
+    source_snapshots: dict[str, RawSnapshot],
+) -> RawSnapshot | None:
+    """Select a real historical series; this is not a spot-price preference."""
+    for source_id in ("gate", "coingecko"):
+        snapshot = source_snapshots.get(source_id)
+        if snapshot is None or snapshot.is_stale:
+            continue
+        closes = snapshot.payload.get("closes")
+        if isinstance(closes, list) and len(closes) >= 2:
+            return snapshot
+    return None
 
 
 def _record_last_good(store: LastGoodSnapshotStore | None, snapshot: RawSnapshot) -> None:

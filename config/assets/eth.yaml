@@ -10,7 +10,7 @@ noise_threshold:
   floor_pct: { "6h": 1.2, "24h": 1.8 }
 price_sources:
   aggregation: median
-  min_sources: 3
+  min_sources: 2
   max_deviation_pct: 0.5
 indicators: [rsi_14, macd, ema_20_50, atr_pct, volume_ratio_20d]
 rules_dir: rules/assets/eth/

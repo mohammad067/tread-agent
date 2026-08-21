@@ -30,7 +30,7 @@ from market_state_engine.reasoning.models import CallRecord
 from market_state_engine.rules.engine import RuleEngine
 from market_state_engine.rules.loader import load_rulebook, read_rulebook_version
 
-_PIPELINE_VERSION = "1.1.0"
+_PIPELINE_VERSION = "1.2.0"
 
 
 def _utc_now() -> datetime:  # pragma: no cover - trivial default, overridden in tests
@@ -72,7 +72,7 @@ def build_container(
     env: str = "dev",
     ingest_provider: Callable[[RunContext], IngestBundle] | None = None,
     ingest_provider_factory: (
-        Callable[[Database], Callable[[RunContext], IngestBundle]] | None
+        Callable[[Database, ConfigBundle], Callable[[RunContext], IngestBundle]] | None
     ) = None,
     overrides: Mapping[str, ProviderAdapter] | None = None,
     clock: Callable[[], datetime] = _utc_now,
@@ -127,7 +127,9 @@ def build_container(
     if (ingest_provider is None) == (ingest_provider_factory is None):
         raise ValueError("provide exactly one of ingest_provider or ingest_provider_factory")
     resolved_ingest = (
-        ingest_provider if ingest_provider is not None else ingest_provider_factory(database)  # type: ignore[misc]
+        ingest_provider
+        if ingest_provider is not None
+        else ingest_provider_factory(database, config)  # type: ignore[misc]
     )
 
     def _next_run_sequence() -> int:

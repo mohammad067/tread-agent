@@ -4,7 +4,7 @@
 > Replay, Evaluation, and the Event Log. **Design only — no code.** Sequence diagrams in
 > [sequence-diagrams.md](sequence-diagrams.md). Terms binding per
 > [../product/09-domain-dictionary.md](../product/09-domain-dictionary.md).
-> **Version:** 1.1.0
+> **Version:** 1.2.0
 
 ---
 

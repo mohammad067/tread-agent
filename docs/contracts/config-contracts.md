@@ -26,7 +26,7 @@ code change** (F-8, ADR-007). Every file is SemVer-versioned; a snapshot (secret
 | `trading_hours` | string/enum | M | `24/7`, `cme_wti`, `gold_spot`, `tehran_fx`, … (staleness logic). |
 | `staleness_threshold_minutes` | integer | M | Older → `is_stale`. |
 | `noise_threshold` | object | M | **ATR-relative** (A5): `{k: number, floor_pct: {6h,24h}}`. Trader-set. |
-| `price_sources` | object | C | Crypto: `{aggregation: median, min_sources, max_deviation_pct}` (ADR-009). |
+| `price_sources` | object | C | Crypto: `{aggregation: median, min_sources, max_deviation_pct}`. BTC/ETH target three configured sources and permit two only within the deviation threshold (ADR-009). |
 | `indicators` | array\<enum\> | M | Full set for non-index; reduced for `index` (A8). |
 | `rules_dir` | string | M | Path to the asset's rules (e.g., `rules/assets/btc/`). |
 | `source` | object | C | e.g., `usd_irr`: `{provider: kifpool, field: priceSellIRT, currency: IRT}` (ADR-014). |

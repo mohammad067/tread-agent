@@ -40,7 +40,7 @@ from market_state_engine.reasoning.port import MarketReasoner
 from market_state_engine.rules.engine import RuleEngine
 from market_state_engine.scoring.engine import ScoringEngine
 
-_PIPELINE_VERSION = "1.1.0"
+_PIPELINE_VERSION = "1.2.0"
 
 
 @dataclass(frozen=True)

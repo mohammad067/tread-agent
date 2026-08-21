@@ -39,6 +39,16 @@ def test_total_mcap_reduced_indicator_set() -> None:
     assert "atr_pct" in total.indicators
 
 
+def test_crypto_aggregation_policy_is_configured() -> None:
+    bundle = load_config_bundle(CONFIG_DIR)
+    for symbol in ("BTC", "ETH"):
+        policy = bundle.assets[symbol].price_sources
+        assert policy is not None
+        assert policy.aggregation == "median"
+        assert policy.min_sources == 2
+        assert policy.max_deviation_pct == 0.5
+
+
 def test_mhi_weights_sum_to_one() -> None:
     bundle = load_config_bundle(CONFIG_DIR)
     assert abs(sum(bundle.mhi_weights.weights.values()) - 1.0) < 1e-6

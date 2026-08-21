@@ -91,6 +91,9 @@ def _chart_to_ohlcv(prices: list[list[float]], volumes: list[list[float]]) -> di
         "highs": highs,
         "lows": lows,
         "volumes": volumes_aligned,
+        "currency": "USD",
+        "source_quote_currency": "USD",
+        "quote_normalization": "COINGECKO_USD_NORMALIZED",
     }
 
 
@@ -123,6 +126,12 @@ class CoinGeckoPriceSource:
             raise RuntimeError(f"CoinGecko returned empty prices for {coin_id}")
 
         payload = _chart_to_ohlcv(prices, volumes)
+        if sym in {"BTC", "ETH"}:
+            # CoinGecko market_chart supplies real price points but no candle
+            # highs/lows. Keep crypto fallback history honest rather than
+            # exposing the estimated ranges used by the unchanged GOLD path.
+            payload.pop("highs", None)
+            payload.pop("lows", None)
         return RawSnapshot(
             source_id="coingecko",
             symbol=sym,

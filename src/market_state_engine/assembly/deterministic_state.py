@@ -220,12 +220,14 @@ class DeterministicStateAssembler:
                 stale_reason="price_unavailable",
             )
         value = _as_float(snap.payload.get("value"), 0.0)
+        venue_aggregation = snap.payload.get("venue_aggregation")
         return Price(
             value=value,
             currency=currency,
             as_of=snap.as_of,
             is_stale=snap.is_stale,
             stale_reason=snap.stale_reason,
+            venue_aggregation=(venue_aggregation if isinstance(venue_aggregation, str) else None),
         )
 
     def _global(

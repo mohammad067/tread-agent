@@ -49,7 +49,7 @@ class RunService:
         clock: Callable[[], datetime],
         call_record_sink: list[CallRecord],
         *,
-        pipeline_version: str = "1.1.0",
+        pipeline_version: str = "1.2.0",
         replay: bool = False,
     ) -> None:
         self._db = db

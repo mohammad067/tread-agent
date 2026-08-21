@@ -10,7 +10,7 @@ noise_threshold:
   floor_pct: { "6h": 1.0, "24h": 1.5 }
 price_sources:
   aggregation: median
-  min_sources: 3
+  min_sources: 2
   max_deviation_pct: 0.5
 indicators: [rsi_14, macd, ema_20_50, atr_pct, volume_ratio_20d]
 rules_dir: rules/assets/btc/
@@ -27,7 +27,7 @@ rules_dir: rules/assets/btc/
 # (کمتر از این = نویز)
 #
 # قیمت از چند منبع با Median
-# حداقل 3 منبع
+# هدف 3 منبع؛ حداقل 2 منبع فقط در صورت توافق در آستانه
 # اگر انحراف بیشتر از 0.5% باشد → Flag
 #
 # اندیکاتورها:
